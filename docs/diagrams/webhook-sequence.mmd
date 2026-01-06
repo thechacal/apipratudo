@@ -1,0 +1,34 @@
+sequenceDiagram
+  autonumber
+  participant Client as Cliente/Integrador
+  participant Gateway as api-gateway
+  participant Webhook as webhook-service
+  participant DB as Postgres
+  participant Queue as Fila
+  participant Worker as Webhook Worker
+  participant Target as Destino
+  participant DLQ as DLQ
+  participant Source as Servico Emissor
+
+  Client->>Gateway: POST /v1/webhooks
+  Gateway->>Webhook: encaminha cadastro
+  Webhook->>DB: salva configuracao
+  Webhook-->>Gateway: 201 Created
+  Gateway-->>Client: 201 Created
+
+  Source->>Webhook: evento gerado
+  Webhook->>Queue: enfileira entrega
+
+  loop tentativas
+    Worker->>Queue: consome
+    Worker->>Target: POST evento
+    alt sucesso
+      Worker-->>Queue: ack
+    else falha
+      Worker-->>Queue: retry com backoff
+    end
+  end
+
+  alt excedeu retries
+    Worker->>DLQ: move mensagem
+  end

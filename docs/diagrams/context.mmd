@@ -1,0 +1,11 @@
+C4Context
+title apipratudo - Context
+
+Person(integrator, "Developer/Integrador", "Cria apps e consome APIs")
+System(apipratudo, "apipratudo", "Plataforma de APIs com api-gateway e microservicos")
+System_Ext(client_systems, "Sistemas de clientes", "Consomem as APIs")
+System_Ext(webhook_targets, "Destinos de webhook", "Recebem notificacoes")
+
+Rel(integrator, apipratudo, "Configura e monitora")
+Rel(client_systems, apipratudo, "Consome APIs /v1", "HTTPS")
+Rel(apipratudo, webhook_targets, "Entrega webhooks", "HTTPS")
