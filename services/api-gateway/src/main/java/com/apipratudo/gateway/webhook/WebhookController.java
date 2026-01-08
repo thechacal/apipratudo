@@ -1,7 +1,6 @@
 package com.apipratudo.gateway.webhook;
 
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +22,7 @@ public class WebhookController {
   public ResponseEntity<WebhookCreateResponse> create(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @Valid @RequestBody WebhookCreateRequest request) {
-    WebhookCreateResponse response = webhookService.create(request, idempotencyKey);
-    return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    WebhookService.WebhookCreateResult result = webhookService.create(request, idempotencyKey);
+    return ResponseEntity.status(result.statusCode()).body(result.response());
   }
 }

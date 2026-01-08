@@ -1,9 +1,9 @@
 # apipratudo
 
-Plataforma de APIs em Java/Spring Boot organizada como microservicos, com entrada unica via api-gateway e foco em boas praticas de engenharia.
+Plataforma de APIs em Java/Spring Boot organizada como microservicos, com entrada unica via api-gateway e foco em boas praticas de engenharia. O primeiro servico implementado e o api-gateway.
 
 ## Servicos planejados
-- api-gateway
+- api-gateway (implementado)
 - quota-service
 - webhook-service
 - file-service
@@ -116,7 +116,8 @@ sequenceDiagram
 ```
 
 ## Como rodar localmente
-Placeholder para docker compose.
+Por enquanto, apenas o api-gateway.
 ```bash
-docker compose up
+cd services/api-gateway
+mvn spring-boot:run
 ```
