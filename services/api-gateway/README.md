@@ -7,6 +7,47 @@ Servico Spring Boot 3 (Java 21) para o apipratudo.
 mvn spring-boot:run
 ```
 
+## Firestore
+Cloud Run (prod):
+- `APP_FIRESTORE_ENABLED=true`
+- `APP_FIRESTORE_PROJECT_ID` (opcional; usa `GOOGLE_CLOUD_PROJECT` do ambiente por padrao)
+- `APP_WEBHOOKS_COLLECTION` (opcional)
+- `APP_DELIVERIES_COLLECTION` (opcional)
+- `APP_WEBHOOKS_LIST_LIMIT` e `APP_DELIVERIES_LIST_LIMIT` (opcional)
+- `APP_IDEMPOTENCY_STORE=memory` (opcional)
+
+IAM minimo para o service account:
+- `roles/datastore.user`
+
+Deploy com env vars:
+```bash
+gcloud run deploy api-gateway \\
+  --source services/api-gateway \\
+  --region southamerica-east1 \\
+  --allow-unauthenticated \\
+  --set-env-vars=APP_FIRESTORE_ENABLED=true,APP_IDEMPOTENCY_STORE=memory
+```
+
+Rodar local sem emulator (ADC):
+```bash
+export APP_FIRESTORE_ENABLED=true
+export GOOGLE_CLOUD_PROJECT=seu-projeto
+mvn spring-boot:run
+```
+
+Rodar local com emulator (recomendado para testes):
+```bash
+./scripts/firestore-emulator.sh
+```
+
+Rodar local com emulator manual:
+```bash
+export APP_FIRESTORE_ENABLED=true
+export GOOGLE_CLOUD_PROJECT=local-dev
+export FIRESTORE_EMULATOR_HOST=localhost:8085
+mvn spring-boot:run
+```
+
 ## Documentacao
 - Swagger UI: http://localhost:8080/docs
 - OpenAPI: http://localhost:8080/openapi.yaml
