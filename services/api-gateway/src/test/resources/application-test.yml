@@ -1,0 +1,5 @@
+app:
+  firestore:
+    enabled: false
+  docs:
+    redirect-enabled: true
