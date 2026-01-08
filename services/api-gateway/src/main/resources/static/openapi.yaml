@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: apipratudo API Gateway
-  version: 0.1.0
+  version: 0.2.0
   description: API Gateway como front door para rotas /v1 do apipratudo.
 servers:
   - url: https://api.apipratudo.local
@@ -9,7 +9,7 @@ paths:
   /v1/echo:
     get:
       summary: Health echo do gateway
-      description: Endpoint simples de verificação do serviço.
+      description: Endpoint simples de verificacao do servico.
       tags:
         - gateway
       responses:
@@ -27,14 +27,14 @@ paths:
   /v1/webhooks:
     post:
       summary: Cadastro de webhook
-      description: Cria um webhook no sistema (encaminhado ao webhook-service).
+      description: Cria um webhook no sistema.
       tags:
         - webhooks
       parameters:
         - name: Idempotency-Key
           in: header
           required: false
-          description: Chave para idempotencia de criacao. Repetir o mesmo payload retorna a mesma resposta 201.
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 201.
           schema:
             type: string
       requestBody:
@@ -53,15 +53,223 @@ paths:
         "400":
           description: Erro de validacao
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/ProblemDetails"
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Conflito de idempotencia
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/ProblemDetails"
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      summary: Listar webhooks
+      tags:
+        - webhooks
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        "200":
+          description: Lista de webhooks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookListResponse"
+  /v1/webhooks/{id}:
+    get:
+      summary: Obter webhook por id
+      tags:
+        - webhooks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "404":
+          description: Webhook nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Atualizar webhook
+      tags:
+        - webhooks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookUpdateRequest"
+      responses:
+        "200":
+          description: Webhook atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Webhook nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Remover webhook
+      tags:
+        - webhooks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Webhook removido
+        "404":
+          description: Webhook nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/webhooks/{id}/test:
+    post:
+      summary: Testar webhook
+      tags:
+        - webhooks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Entrega de teste criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryTestResponse"
+        "404":
+          description: Webhook nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/deliveries:
+    get:
+      summary: Listar deliveries
+      tags:
+        - deliveries
+      parameters:
+        - name: webhookId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        "200":
+          description: Lista de deliveries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryListResponse"
+  /v1/deliveries/{id}:
+    get:
+      summary: Obter delivery por id
+      tags:
+        - deliveries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryResponse"
+        "404":
+          description: Delivery nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/deliveries/{id}/retry:
+    post:
+      summary: Reenviar delivery
+      tags:
+        - deliveries
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: Nova delivery criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryResponse"
+        "404":
+          description: Delivery nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     EchoResponse:
@@ -76,6 +284,17 @@ components:
         status:
           type: string
           example: ok
+    WebhookStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - DISABLED
+        - DELETED
+    WebhookUpdateStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - DISABLED
     WebhookCreateRequest:
       type: object
       required:
@@ -91,6 +310,16 @@ components:
           type: string
           description: Tipo de evento que dispara o webhook.
           example: invoice.paid
+    WebhookUpdateRequest:
+      type: object
+      properties:
+        targetUrl:
+          type: string
+          format: uri
+        eventType:
+          type: string
+        status:
+          $ref: "#/components/schemas/WebhookUpdateStatus"
     WebhookCreateResponse:
       type: object
       required:
@@ -102,31 +331,137 @@ components:
           format: uuid
           description: Identificador do webhook criado.
         status:
-          type: string
-          example: created
-    ProblemDetails:
+          $ref: "#/components/schemas/WebhookStatus"
+    WebhookResponse:
       type: object
       required:
-        - type
-        - title
+        - id
+        - targetUrl
+        - eventType
         - status
-        - detail
-        - instance
+        - createdAt
+        - updatedAt
       properties:
-        type:
+        id:
+          type: string
+          format: uuid
+        targetUrl:
           type: string
           format: uri
-          example: https://apipratudo.local/errors/validation
-        title:
+        eventType:
+          type: string
+        status:
+          $ref: "#/components/schemas/WebhookStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WebhookListResponse:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    DeliveryStatus:
+      type: string
+      enum:
+        - SUCCESS
+        - FAILED
+    DeliveryResponse:
+      type: object
+      required:
+        - id
+        - webhookId
+        - eventType
+        - targetUrl
+        - status
+        - attempt
+        - responseCode
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        webhookId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        targetUrl:
+          type: string
+          format: uri
+        status:
+          $ref: "#/components/schemas/DeliveryStatus"
+        attempt:
+          type: integer
+          example: 1
+        responseCode:
+          type: integer
+          example: 200
+        createdAt:
+          type: string
+          format: date-time
+    DeliveryListResponse:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    DeliveryTestResponse:
+      type: object
+      required:
+        - deliveryId
+        - status
+      properties:
+        deliveryId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/DeliveryStatus"
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - details
+      properties:
+        error:
+          type: string
+          example: VALIDATION_ERROR
+        message:
           type: string
           example: Validation error
-        status:
-          type: integer
-          format: int32
-          example: 400
-        detail:
-          type: string
-          example: targetUrl is required
-        instance:
-          type: string
-          example: /v1/webhooks
+        details:
+          type: array
+          items:
+            type: string
+          example:
+            - targetUrl must not be blank
