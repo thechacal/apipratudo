@@ -1,115 +1,87 @@
 package com.apipratudo.gateway.error;
 
 import com.apipratudo.gateway.webhook.IdempotencyConflictException;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice(basePackages = "com.apipratudo.gateway")
 public class ApiExceptionHandler {
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<ProblemDetail> handleValidation(
-      MethodArgumentNotValidException ex, HttpServletRequest request) {
-    String detail = ex.getBindingResult().getFieldErrors().stream()
+  public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
+    List<String> details = ex.getBindingResult().getFieldErrors().stream()
         .map(ApiExceptionHandler::formatFieldError)
-        .findFirst()
-        .orElse("Validation error");
-
-    return problem(
-        HttpStatus.BAD_REQUEST,
-        "https://apipratudo.local/errors/validation",
-        "Validation error",
-        detail,
-        request
-    );
+        .collect(Collectors.toList());
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation error", details);
   }
 
   @ExceptionHandler(ConstraintViolationException.class)
-  public ResponseEntity<ProblemDetail> handleConstraintViolation(
-      ConstraintViolationException ex, HttpServletRequest request) {
-    String detail = ex.getConstraintViolations().stream()
+  public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+    List<String> details = ex.getConstraintViolations().stream()
         .map(violation -> violation.getPropertyPath() + " " + violation.getMessage())
-        .findFirst()
-        .orElse("Validation error");
+        .collect(Collectors.toList());
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation error", details);
+  }
 
-    return problem(
-        HttpStatus.BAD_REQUEST,
-        "https://apipratudo.local/errors/validation",
-        "Validation error",
-        detail,
-        request
-    );
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+    String detail = "Invalid value for " + ex.getName();
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation error", List.of(detail));
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
-  public ResponseEntity<ProblemDetail> handleBadJson(
-      HttpMessageNotReadableException ex, HttpServletRequest request) {
-    return problem(
-        HttpStatus.BAD_REQUEST,
-        "https://apipratudo.local/errors/bad-request",
-        "Bad request",
-        "Malformed JSON request",
-        request
-    );
+  public ResponseEntity<ErrorResponse> handleBadJson(HttpMessageNotReadableException ex) {
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Malformed JSON request", Collections.emptyList());
+  }
+
+  @ExceptionHandler(BadRequestException.class)
+  public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
+    List<String> details = ex.getDetails() == null ? Collections.emptyList() : ex.getDetails();
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), details);
+  }
+
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
+    return error(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), Collections.emptyList());
   }
 
   @ExceptionHandler(IdempotencyConflictException.class)
-  public ResponseEntity<ProblemDetail> handleIdempotencyConflict(
-      IdempotencyConflictException ex, HttpServletRequest request) {
-    return problem(
-        HttpStatus.CONFLICT,
-        "https://apipratudo.local/errors/idempotency-conflict",
-        "Idempotency conflict",
-        ex.getMessage(),
-        request
-    );
+  public ResponseEntity<ErrorResponse> handleIdempotencyConflict(IdempotencyConflictException ex) {
+    return error(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), Collections.emptyList());
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<ProblemDetail> handleUnexpected(
-      Exception ex, HttpServletRequest request) {
-    return problem(
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        "https://apipratudo.local/errors/internal",
-        "Internal server error",
-        "Unexpected error",
-        request
-    );
+  public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+    return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected error", Collections.emptyList());
   }
 
-  private static ResponseEntity<ProblemDetail> problem(
+  private static ResponseEntity<ErrorResponse> error(
       HttpStatus status,
-      String type,
-      String title,
-      String detail,
-      HttpServletRequest request) {
-    ProblemDetail problem = ProblemDetail.forStatus(status);
-    problem.setType(URI.create(type));
-    problem.setTitle(title);
-    problem.setDetail(detail);
-    if (request != null) {
-      problem.setInstance(URI.create(request.getRequestURI()));
-    }
-
+      String error,
+      String message,
+      List<String> details
+  ) {
+    List<String> safeDetails = Optional.ofNullable(details).orElse(Collections.emptyList());
+    ErrorResponse response = new ErrorResponse(error, message, safeDetails);
     return ResponseEntity.status(status)
-        .contentType(MediaType.APPLICATION_PROBLEM_JSON)
-        .body(problem);
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(response);
   }
 
   private static String formatFieldError(FieldError error) {
-    String message = Optional.ofNullable(error.getDefaultMessage())
-        .orElse("is invalid");
+    String message = Optional.ofNullable(error.getDefaultMessage()).orElse("is invalid");
     return error.getField() + " " + message;
   }
 }

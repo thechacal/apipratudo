@@ -8,12 +8,14 @@ springdoc:
 
 app:
   firestore:
-    enabled: ${FIRESTORE_ENABLED:true}
+    enabled: ${FIRESTORE_ENABLED:false}
   idempotency:
     collection: ${IDP_COLLECTION:idempotency_keys}
     ttl-seconds: ${IDP_TTL_SECONDS:86400}
   webhooks:
     collection: ${WEBHOOKS_COLLECTION:webhooks}
+  docs:
+    redirect-enabled: ${DOCS_REDIRECT_ENABLED:false}
 
 management:
   endpoints:
