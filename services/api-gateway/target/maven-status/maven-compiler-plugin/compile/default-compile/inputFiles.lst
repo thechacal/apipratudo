@@ -1,0 +1,8 @@
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/EchoController.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/webhook/WebhookCreateResponse.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/ApiGatewayApplication.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/webhook/WebhookService.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/webhook/WebhookCreateRequest.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/error/ApiExceptionHandler.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/webhook/WebhookController.java
+/home/neo/Documentos/projetos/apipratudo/services/api-gateway/src/main/java/com/apipratudo/gateway/webhook/IdempotencyConflictException.java

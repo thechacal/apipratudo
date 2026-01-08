@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: apipratudo API Gateway
+  version: 0.1.0
+  description: API Gateway como front door para rotas /v1 do apipratudo.
+servers:
+  - url: https://api.apipratudo.local
+paths:
+  /v1/echo:
+    get:
+      summary: Health echo do gateway
+      description: Endpoint simples de verificação do serviço.
+      tags:
+        - gateway
+      responses:
+        "200":
+          description: Echo OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EchoResponse"
+              examples:
+                ok:
+                  value:
+                    service: api-gateway
+                    status: ok
+  /v1/webhooks:
+    post:
+      summary: Cadastro de webhook
+      description: Cria um webhook no sistema (encaminhado ao webhook-service).
+      tags:
+        - webhooks
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia de criacao.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookCreateRequest"
+      responses:
+        "201":
+          description: Webhook criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookCreateResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Conflito de idempotencia
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+components:
+  schemas:
+    EchoResponse:
+      type: object
+      required:
+        - service
+        - status
+      properties:
+        service:
+          type: string
+          example: api-gateway
+        status:
+          type: string
+          example: ok
+    WebhookCreateRequest:
+      type: object
+      required:
+        - targetUrl
+        - eventType
+      properties:
+        targetUrl:
+          type: string
+          format: uri
+          description: URL destino para recebimento do webhook.
+          example: https://cliente.exemplo.com/webhooks/apipratudo
+        eventType:
+          type: string
+          description: Tipo de evento que dispara o webhook.
+          example: invoice.paid
+    WebhookCreateResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador do webhook criado.
+        status:
+          type: string
+          example: created
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri
+          example: https://apipratudo.local/errors/validation
+        title:
+          type: string
+          example: Validation error
+        status:
+          type: integer
+          format: int32
+          example: 400
+        detail:
+          type: string
+          example: targetUrl is required
+        instance:
+          type: string
+          example: /v1/webhooks
