@@ -6,9 +6,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "app.idempotency.store", havingValue = "memory", matchIfMissing = true)
 public class InMemoryIdempotencyStore implements IdempotencyStore {
 
   private final ConcurrentMap<String, StoredRecord> store = new ConcurrentHashMap<>();

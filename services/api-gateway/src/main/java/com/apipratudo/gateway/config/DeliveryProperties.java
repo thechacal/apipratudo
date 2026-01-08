@@ -4,10 +4,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "app.webhooks")
-public class WebhookProperties {
+@ConfigurationProperties(prefix = "app.deliveries")
+public class DeliveryProperties {
 
-  private String collection = "webhooks";
+  private String collection = "deliveries";
   private int listLimit = 200;
 
   public String getCollection() {

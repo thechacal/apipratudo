@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 public class FirestoreProperties {
 
   private boolean enabled = true;
+  private String projectId;
+  private String emulatorHost;
 
   public boolean isEnabled() {
     return enabled;
@@ -15,5 +17,21 @@ public class FirestoreProperties {
 
   public void setEnabled(boolean enabled) {
     this.enabled = enabled;
+  }
+
+  public String getProjectId() {
+    return projectId;
+  }
+
+  public void setProjectId(String projectId) {
+    this.projectId = projectId;
+  }
+
+  public String getEmulatorHost() {
+    return emulatorHost;
+  }
+
+  public void setEmulatorHost(String emulatorHost) {
+    this.emulatorHost = emulatorHost;
   }
 }

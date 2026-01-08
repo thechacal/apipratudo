@@ -10,5 +10,7 @@ public interface DeliveryRepository {
 
   Optional<Delivery> findById(String id);
 
+  List<Delivery> findByWebhookId(String webhookId);
+
   List<Delivery> findAll();
 }

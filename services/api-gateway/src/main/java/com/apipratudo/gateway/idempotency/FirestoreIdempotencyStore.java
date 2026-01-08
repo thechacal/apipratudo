@@ -14,10 +14,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnBean(Firestore.class)
+@ConditionalOnProperty(name = "app.idempotency.store", havingValue = "firestore")
 public class FirestoreIdempotencyStore implements IdempotencyStore {
 
   private final Firestore firestore;
