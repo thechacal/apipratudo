@@ -20,3 +20,7 @@ rad.json
 *.flf
 #Test results file
 TestResults.xmlDockerfile
+
+# Maven / Java build artifacts
+**/target/
+*.class
