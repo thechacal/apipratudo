@@ -7,6 +7,7 @@ import com.apipratudo.gateway.idempotency.IdempotencyRequest;
 import com.apipratudo.gateway.idempotency.IdempotencyResponse;
 import com.apipratudo.gateway.idempotency.IdempotencyResult;
 import com.apipratudo.gateway.idempotency.IdempotencyStore;
+import com.apipratudo.gateway.logging.TraceIdUtils;
 import com.apipratudo.gateway.webhook.dto.DeliveryTestResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookCreateRequest;
 import com.apipratudo.gateway.webhook.dto.WebhookCreateResponse;
@@ -72,7 +73,7 @@ public class WebhookService {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
       Webhook created = createWebhook(request);
       WebhookCreateResponse response = toCreateResponse(created);
-      log.info("Webhook created id={} status={}", created.id(), created.status());
+      log.info("Webhook created id={} status={} traceId={}", created.id(), created.status(), traceId());
       return new WebhookCreateResult(HttpStatus.CREATED.value(), response, false);
     }
 
@@ -100,9 +101,9 @@ public class WebhookService {
 
     WebhookCreateResponse response = parseCreateResponse(result.responseBodyJson());
     if (result.replay()) {
-      log.info("Webhook replayed id={} key={}", response.id(), key);
+      log.info("Webhook replayed id={} key={} traceId={}", response.id(), key, traceId());
     } else {
-      log.info("Webhook created id={} status={} key={}", response.id(), response.status(), key);
+      log.info("Webhook created id={} status={} key={} traceId={}", response.id(), response.status(), key, traceId());
     }
 
     return new WebhookCreateResult(result.statusCode(), response, result.replay());
@@ -111,7 +112,7 @@ public class WebhookService {
   public WebhookListResponse list(int page, int size) {
     List<Webhook> filtered = webhookRepository.findAll().stream()
         .filter(webhook -> webhook.status() != WebhookStatus.DELETED)
-        .sorted(Comparator.comparing(Webhook::createdAt))
+        .sorted(Comparator.comparing(Webhook::createdAt).reversed().thenComparing(Webhook::id))
         .collect(Collectors.toList());
 
     long total = filtered.size();
@@ -146,7 +147,7 @@ public class WebhookService {
     );
 
     webhookRepository.save(updated);
-    log.info("Webhook updated id={} status={}", updated.id(), updated.status());
+    log.info("Webhook updated id={} status={} traceId={}", updated.id(), updated.status(), traceId());
     return toResponse(updated);
   }
 
@@ -161,7 +162,7 @@ public class WebhookService {
         Instant.now(clock)
     );
     webhookRepository.save(deleted);
-    log.info("Webhook deleted id={}", existing.id());
+    log.info("Webhook deleted id={} status={} traceId={}", existing.id(), deleted.status(), traceId());
   }
 
   public DeliveryTestResponse test(String id) {
@@ -177,7 +178,8 @@ public class WebhookService {
         Instant.now(clock)
     );
     deliveryRepository.save(delivery);
-    log.info("Webhook test delivery created deliveryId={} webhookId={}", delivery.id(), webhook.id());
+    log.info("Webhook test delivery created deliveryId={} webhookId={} status={} traceId={}", delivery.id(),
+        webhook.id(), delivery.status(), traceId());
     return new DeliveryTestResponse(delivery.id(), delivery.status().name());
   }
 
@@ -283,5 +285,10 @@ public class WebhookService {
   }
 
   public record WebhookCreateResult(int statusCode, WebhookCreateResponse response, boolean replay) {
+  }
+
+  private String traceId() {
+    String traceId = TraceIdUtils.currentTraceId();
+    return traceId == null ? "-" : traceId;
   }
 }

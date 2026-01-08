@@ -1,6 +1,7 @@
 package com.apipratudo.gateway.webhook.service;
 
 import com.apipratudo.gateway.error.ResourceNotFoundException;
+import com.apipratudo.gateway.logging.TraceIdUtils;
 import com.apipratudo.gateway.webhook.dto.DeliveryListResponse;
 import com.apipratudo.gateway.webhook.dto.DeliveryResponse;
 import com.apipratudo.gateway.webhook.model.Delivery;
@@ -32,9 +33,12 @@ public class DeliveryService {
   public DeliveryListResponse list(String webhookId, int page, int size) {
     String filter = webhookId == null || webhookId.isBlank() ? null : webhookId.trim();
 
-    List<Delivery> filtered = deliveryRepository.findAll().stream()
-        .filter(delivery -> filter == null || delivery.webhookId().equals(filter))
-        .sorted(Comparator.comparing(Delivery::createdAt))
+    List<Delivery> source = filter == null
+        ? deliveryRepository.findAll()
+        : deliveryRepository.findByWebhookId(filter);
+
+    List<Delivery> filtered = source.stream()
+        .sorted(Comparator.comparing(Delivery::createdAt).reversed().thenComparing(Delivery::id))
         .collect(Collectors.toList());
 
     long total = filtered.size();
@@ -63,7 +67,8 @@ public class DeliveryService {
     );
 
     deliveryRepository.save(retried);
-    log.info("Delivery retried oldId={} newId={}", existing.id(), retried.id());
+    log.info("Delivery retried oldId={} newId={} status={} traceId={}", existing.id(), retried.id(), retried.status(),
+        traceId());
     return toResponse(retried);
   }
 
@@ -95,5 +100,10 @@ public class DeliveryService {
     }
     int toIndex = Math.min(fromIndex + size, items.size());
     return items.subList(fromIndex, toIndex);
+  }
+
+  private String traceId() {
+    String traceId = TraceIdUtils.currentTraceId();
+    return traceId == null ? "-" : traceId;
   }
 }

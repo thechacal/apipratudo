@@ -465,3 +465,6 @@ components:
             type: string
           example:
             - targetUrl must not be blank
+        traceId:
+          type: string
+          example: 4bf92f3577b34da6a3ce929d0e0e4736
