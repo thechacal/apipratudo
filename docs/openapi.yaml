@@ -380,6 +380,7 @@ components:
     DeliveryStatus:
       type: string
       enum:
+        - PENDING
         - SUCCESS
         - FAILED
     DeliveryResponse:

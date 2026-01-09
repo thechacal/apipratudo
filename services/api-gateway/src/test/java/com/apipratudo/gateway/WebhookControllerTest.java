@@ -198,6 +198,6 @@ class WebhookControllerTest {
     mockMvc.perform(post("/v1/webhooks/{id}/test", id))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.deliveryId").isNotEmpty())
-        .andExpect(jsonPath("$.status").value("SUCCESS"));
+        .andExpect(jsonPath("$.status").value("PENDING"));
   }
 }

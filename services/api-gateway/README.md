@@ -48,6 +48,34 @@ export FIRESTORE_EMULATOR_HOST=localhost:8085
 mvn spring-boot:run
 ```
 
+## Deliveries reais (HTTP)
+Configuracoes:
+- `APP_DELIVERIES_MAX_ATTEMPTS` (default 5)
+- `APP_DELIVERIES_INITIAL_BACKOFF_MS` (default 500)
+- `APP_DELIVERIES_MAX_BACKOFF_MS` (default 30000)
+- `APP_DELIVERIES_TIMEOUT_MS` (default 5000)
+- `APP_DELIVERIES_RETRY_ON_5XX` (default true)
+- `APP_DELIVERIES_RETRY_ON_429` (default true)
+
+Teste local com WireMock:
+```bash
+docker run --rm -p 8089:8080 wiremock/wiremock:3.5.4
+```
+
+```bash
+curl -X POST http://localhost:8089/__admin/mappings \
+  -H 'Content-Type: application/json' \
+  -d '{"request":{"method":"POST","url":"/webhook"},"response":{"status":200}}'
+```
+
+```bash
+curl -X POST http://localhost:8080/v1/webhooks \
+  -H 'Content-Type: application/json' \
+  -d '{"targetUrl":"http://localhost:8089/webhook","eventType":"invoice.paid"}'
+
+curl -X POST http://localhost:8080/v1/webhooks/{id}/test
+```
+
 ## Documentacao
 - Swagger UI: http://localhost:8080/docs
 - OpenAPI: http://localhost:8080/openapi.yaml

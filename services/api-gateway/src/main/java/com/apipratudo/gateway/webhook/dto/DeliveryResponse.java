@@ -7,7 +7,7 @@ public record DeliveryResponse(
     String webhookId,
     String eventType,
     String targetUrl,
-    String status,
+    DeliveryStatus status,
     int attempt,
     int responseCode,
     Instant createdAt

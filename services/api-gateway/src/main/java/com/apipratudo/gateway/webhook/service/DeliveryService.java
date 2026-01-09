@@ -4,8 +4,10 @@ import com.apipratudo.gateway.error.ResourceNotFoundException;
 import com.apipratudo.gateway.logging.TraceIdUtils;
 import com.apipratudo.gateway.webhook.dto.DeliveryListResponse;
 import com.apipratudo.gateway.webhook.dto.DeliveryResponse;
+import com.apipratudo.gateway.webhook.dto.DeliveryTestResponse;
 import com.apipratudo.gateway.webhook.model.Delivery;
 import com.apipratudo.gateway.webhook.model.DeliveryStatus;
+import com.apipratudo.gateway.webhook.model.Webhook;
 import com.apipratudo.gateway.webhook.repo.DeliveryRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -23,10 +25,12 @@ public class DeliveryService {
   private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
 
   private final DeliveryRepository deliveryRepository;
+  private final DeliveryDispatcher deliveryDispatcher;
   private final Clock clock;
 
-  public DeliveryService(DeliveryRepository deliveryRepository, Clock clock) {
+  public DeliveryService(DeliveryRepository deliveryRepository, DeliveryDispatcher deliveryDispatcher, Clock clock) {
     this.deliveryRepository = deliveryRepository;
+    this.deliveryDispatcher = deliveryDispatcher;
     this.clock = clock;
   }
 
@@ -60,16 +64,38 @@ public class DeliveryService {
         existing.webhookId(),
         existing.eventType(),
         existing.targetUrl(),
-        DeliveryStatus.SUCCESS,
+        DeliveryStatus.PENDING,
         existing.attempt() + 1,
-        200,
-        Instant.now(clock)
+        0,
+        Instant.now(clock),
+        List.of()
     );
 
     deliveryRepository.save(retried);
+    deliveryDispatcher.dispatch(retried, traceId());
     log.info("Delivery retried oldId={} newId={} status={} traceId={}", existing.id(), retried.id(), retried.status(),
         traceId());
     return toResponse(retried);
+  }
+
+  public DeliveryTestResponse createTestDelivery(Webhook webhook) {
+    Delivery delivery = new Delivery(
+        UUID.randomUUID().toString(),
+        webhook.id(),
+        webhook.eventType(),
+        webhook.targetUrl(),
+        DeliveryStatus.PENDING,
+        1,
+        0,
+        Instant.now(clock),
+        List.of()
+    );
+
+    deliveryRepository.save(delivery);
+    deliveryDispatcher.dispatch(delivery, traceId());
+    log.info("Delivery created deliveryId={} webhookId={} status={} traceId={}", delivery.id(), webhook.id(),
+        delivery.status(), traceId());
+    return new DeliveryTestResponse(delivery.id(), publicStatus(delivery.status()));
   }
 
   private Delivery requireDelivery(String id) {
@@ -83,11 +109,22 @@ public class DeliveryService {
         delivery.webhookId(),
         delivery.eventType(),
         delivery.targetUrl(),
-        delivery.status().name(),
+        publicStatus(delivery.status()),
         delivery.attempt(),
         delivery.responseCode(),
         delivery.createdAt()
     );
+  }
+
+  private com.apipratudo.gateway.webhook.dto.DeliveryStatus publicStatus(DeliveryStatus status) {
+    if (status == null) {
+      return com.apipratudo.gateway.webhook.dto.DeliveryStatus.FAILED;
+    }
+    return switch (status) {
+      case FAILED -> com.apipratudo.gateway.webhook.dto.DeliveryStatus.FAILED;
+      case PENDING -> com.apipratudo.gateway.webhook.dto.DeliveryStatus.PENDING;
+      case DELIVERED -> com.apipratudo.gateway.webhook.dto.DeliveryStatus.SUCCESS;
+    };
   }
 
   private <T> List<T> paginate(List<T> items, int page, int size) {

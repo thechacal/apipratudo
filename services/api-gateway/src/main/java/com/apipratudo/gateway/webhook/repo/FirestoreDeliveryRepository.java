@@ -2,6 +2,7 @@ package com.apipratudo.gateway.webhook.repo;
 
 import com.apipratudo.gateway.config.DeliveryProperties;
 import com.apipratudo.gateway.webhook.model.Delivery;
+import com.apipratudo.gateway.webhook.model.DeliveryAttempt;
 import com.apipratudo.gateway.webhook.model.DeliveryStatus;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
@@ -111,6 +112,7 @@ public class FirestoreDeliveryRepository implements DeliveryRepository {
     data.put("attempt", delivery.attempt());
     data.put("responseCode", delivery.responseCode());
     data.put("createdAt", toTimestamp(delivery.createdAt()));
+    data.put("attempts", toAttemptList(delivery.attempts()));
     return data;
   }
 
@@ -123,10 +125,11 @@ public class FirestoreDeliveryRepository implements DeliveryRepository {
     String eventType = snapshot.getString("eventType");
     String targetUrl = snapshot.getString("targetUrl");
     String statusRaw = snapshot.getString("status");
-    DeliveryStatus status = statusRaw == null ? DeliveryStatus.SUCCESS : DeliveryStatus.valueOf(statusRaw);
+    DeliveryStatus status = resolveStatus(statusRaw);
     Long attempt = snapshot.getLong("attempt");
     Long responseCode = snapshot.getLong("responseCode");
     Instant createdAt = toInstant(snapshot.getTimestamp("createdAt"));
+    List<DeliveryAttempt> attempts = toAttempts(snapshot.get("attempts"));
 
     if (webhookId == null || eventType == null || targetUrl == null) {
       return null;
@@ -140,7 +143,8 @@ public class FirestoreDeliveryRepository implements DeliveryRepository {
         status,
         attempt == null ? 1 : attempt.intValue(),
         responseCode == null ? 0 : responseCode.intValue(),
-        createdAt
+        createdAt,
+        attempts
     );
   }
 
@@ -156,5 +160,74 @@ public class FirestoreDeliveryRepository implements DeliveryRepository {
       return Instant.EPOCH;
     }
     return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
+  }
+
+  private DeliveryStatus resolveStatus(String statusRaw) {
+    if (statusRaw == null || statusRaw.isBlank()) {
+      return DeliveryStatus.PENDING;
+    }
+    if ("SUCCESS".equalsIgnoreCase(statusRaw)) {
+      return DeliveryStatus.DELIVERED;
+    }
+    return DeliveryStatus.valueOf(statusRaw);
+  }
+
+  private List<Map<String, Object>> toAttemptList(List<DeliveryAttempt> attempts) {
+    if (attempts == null || attempts.isEmpty()) {
+      return List.of();
+    }
+    List<Map<String, Object>> payloads = new ArrayList<>();
+    for (DeliveryAttempt attempt : attempts) {
+      Map<String, Object> data = new HashMap<>();
+      data.put("attempt", attempt.attempt());
+      data.put("responseCode", attempt.responseCode());
+      data.put("errorMessage", attempt.errorMessage());
+      data.put("occurredAt", toTimestamp(attempt.occurredAt()));
+      payloads.add(data);
+    }
+    return payloads;
+  }
+
+  private List<DeliveryAttempt> toAttempts(Object raw) {
+    if (!(raw instanceof List<?> list)) {
+      return List.of();
+    }
+    List<DeliveryAttempt> attempts = new ArrayList<>();
+    for (Object item : list) {
+      if (!(item instanceof Map<?, ?> map)) {
+        continue;
+      }
+      Object attemptValue = map.get("attempt");
+      Object responseCodeValue = map.get("responseCode");
+      Object errorMessageValue = map.get("errorMessage");
+      Object occurredAtValue = map.get("occurredAt");
+
+      Integer attempt = toInt(attemptValue);
+      Integer responseCode = toInt(responseCodeValue);
+      String errorMessage = errorMessageValue == null ? null : errorMessageValue.toString();
+      Instant occurredAt = occurredAtValue instanceof Timestamp ts ? toInstant(ts) : null;
+
+      if (attempt != null) {
+        attempts.add(new DeliveryAttempt(attempt, responseCode, errorMessage, occurredAt));
+      }
+    }
+    return attempts;
+  }
+
+  private Integer toInt(Object value) {
+    if (value instanceof Long number) {
+      return number.intValue();
+    }
+    if (value instanceof Integer number) {
+      return number;
+    }
+    if (value instanceof String text) {
+      try {
+        return Integer.parseInt(text);
+      } catch (NumberFormatException ignored) {
+        return null;
+      }
+    }
+    return null;
   }
 }

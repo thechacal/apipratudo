@@ -83,10 +83,11 @@ class FirestoreEmulatorIntegrationTest {
         webhookId,
         webhook.eventType(),
         webhook.targetUrl(),
-        DeliveryStatus.SUCCESS,
+        DeliveryStatus.DELIVERED,
         1,
         200,
-        now
+        now,
+        List.of()
     );
 
     deliveryRepository.save(delivery);

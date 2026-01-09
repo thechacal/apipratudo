@@ -4,7 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.net.URI;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -37,6 +42,21 @@ class OpenApiDocsTest {
 
     String body = follow.getResponse().getContentAsString();
     assertThat(body).contains("openapi: 3.");
+    assertThat(body).doesNotContain("DELIVERED");
+
+    Map<String, Object> spec = new ObjectMapper(new YAMLFactory())
+        .readValue(body, new TypeReference<>() {});
+
+    List<String> deliveryResponseEnums = extractStatusEnum(spec, "DeliveryResponse");
+    assertThat(deliveryResponseEnums).containsExactly("PENDING", "SUCCESS", "FAILED");
+
+    List<String> deliveryTestEnums = extractStatusEnum(spec, "DeliveryTestResponse");
+    assertThat(deliveryTestEnums).containsExactly("PENDING", "SUCCESS", "FAILED");
+
+    MvcResult json = mockMvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andReturn();
+    assertThat(json.getResponse().getContentAsString()).doesNotContain("DELIVERED");
   }
 
   @Test
@@ -91,5 +111,15 @@ class OpenApiDocsTest {
         .andReturn();
     assertThat(swagger.getResponse().getStatus()).isEqualTo(302);
     assertThat(swagger.getResponse().getHeader("Location")).isEqualTo("/swagger-ui/index.html");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<String> extractStatusEnum(Map<String, Object> spec, String schemaName) {
+    Map<String, Object> components = (Map<String, Object>) spec.get("components");
+    Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
+    Map<String, Object> schema = (Map<String, Object>) schemas.get(schemaName);
+    Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+    Map<String, Object> status = (Map<String, Object>) properties.get("status");
+    return (List<String>) status.get("enum");
   }
 }

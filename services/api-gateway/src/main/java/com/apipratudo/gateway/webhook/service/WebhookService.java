@@ -14,11 +14,8 @@ import com.apipratudo.gateway.webhook.dto.WebhookCreateResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookListResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookUpdateRequest;
-import com.apipratudo.gateway.webhook.model.Delivery;
-import com.apipratudo.gateway.webhook.model.DeliveryStatus;
 import com.apipratudo.gateway.webhook.model.Webhook;
 import com.apipratudo.gateway.webhook.model.WebhookStatus;
-import com.apipratudo.gateway.webhook.repo.DeliveryRepository;
 import com.apipratudo.gateway.webhook.repo.WebhookRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -50,20 +47,20 @@ public class WebhookService {
       .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
   private final WebhookRepository webhookRepository;
-  private final DeliveryRepository deliveryRepository;
+  private final DeliveryService deliveryService;
   private final IdempotencyStore idempotencyStore;
   private final ObjectMapper objectMapper;
   private final Clock clock;
 
   public WebhookService(
       WebhookRepository webhookRepository,
-      DeliveryRepository deliveryRepository,
+      DeliveryService deliveryService,
       IdempotencyStore idempotencyStore,
       ObjectMapper objectMapper,
       Clock clock
   ) {
     this.webhookRepository = webhookRepository;
-    this.deliveryRepository = deliveryRepository;
+    this.deliveryService = deliveryService;
     this.idempotencyStore = idempotencyStore;
     this.objectMapper = objectMapper;
     this.clock = clock;
@@ -167,20 +164,10 @@ public class WebhookService {
 
   public DeliveryTestResponse test(String id) {
     Webhook webhook = requireWebhook(id);
-    Delivery delivery = new Delivery(
-        UUID.randomUUID().toString(),
-        webhook.id(),
-        webhook.eventType(),
-        webhook.targetUrl(),
-        DeliveryStatus.SUCCESS,
-        1,
-        200,
-        Instant.now(clock)
-    );
-    deliveryRepository.save(delivery);
-    log.info("Webhook test delivery created deliveryId={} webhookId={} status={} traceId={}", delivery.id(),
-        webhook.id(), delivery.status(), traceId());
-    return new DeliveryTestResponse(delivery.id(), delivery.status().name());
+    DeliveryTestResponse response = deliveryService.createTestDelivery(webhook);
+    log.info("Webhook test delivery created deliveryId={} webhookId={} status={} traceId={}",
+        response.deliveryId(), webhook.id(), response.status(), traceId());
+    return response;
   }
 
   private Webhook createWebhook(WebhookCreateRequest request) {
@@ -205,14 +192,14 @@ public class WebhookService {
         webhook.id(),
         webhook.targetUrl(),
         webhook.eventType(),
-        webhook.status().name(),
+        webhook.status(),
         webhook.createdAt(),
         webhook.updatedAt()
     );
   }
 
   private WebhookCreateResponse toCreateResponse(Webhook webhook) {
-    return new WebhookCreateResponse(webhook.id(), webhook.status().name());
+    return new WebhookCreateResponse(webhook.id(), webhook.status());
   }
 
   private Webhook requireWebhook(String id) {
