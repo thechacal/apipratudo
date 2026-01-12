@@ -12,9 +12,6 @@ jobs:
         service:
           - services/api-gateway
           - services/quota-service
-    defaults:
-      run:
-        working-directory: ${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,7 +20,10 @@ jobs:
           java-version: 21
           cache: maven
       - name: mvn test
+        if: ${{ hashFiles(format('{0}/pom.xml', matrix.service)) != '' }}
+        working-directory: ${{ matrix.service }}
         run: mvn -B test
       - name: docker build
         if: ${{ hashFiles(format('{0}/Dockerfile', matrix.service)) != '' }}
+        working-directory: ${{ matrix.service }}
         run: docker build -t ${{ matrix.service }} .
