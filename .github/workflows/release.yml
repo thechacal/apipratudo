@@ -3,46 +3,43 @@ name: release
 on:
   push:
     tags:
-      - 'api-gateway-v*'
-      - 'quota-service-v*'
+      - "api-gateway-v*"
+      - "quota-service-v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release-api-gateway:
+  release:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref_name, 'api-gateway-v')
+    strategy:
+      matrix:
+        include:
+          - service: services/api-gateway
+            tag_prefix: api-gateway-v
+          - service: services/quota-service
+            tag_prefix: quota-service-v
+
+    if: startsWith(github.ref_name, matrix.tag_prefix)
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: "21"
           cache: maven
-      - name: mvn package
-        working-directory: services/api-gateway
-        run: mvn -B -DskipTests package
-      - name: create release
+
+      - name: mvn package (${{ matrix.service }})
+        if: ${{ hashFiles(format('{0}/pom.xml', matrix.service)) != '' }}
+        working-directory: ${{ matrix.service }}
+        run: mvn -B -ntp -DskipTests package
+
+      - name: create github release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: services/api-gateway/target/*.jar
-  release-quota-service:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref_name, 'quota-service-v')
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-          cache: maven
-      - name: mvn package
-        working-directory: services/quota-service
-        run: mvn -B -DskipTests package
-      - name: create release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: services/quota-service/target/*.jar
+          files: |
+            ${{ matrix.service }}/target/*.jar
