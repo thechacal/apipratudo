@@ -32,8 +32,6 @@ app:
     timeout-ms: ${APP_DELIVERIES_TIMEOUT_MS:${DELIVERIES_TIMEOUT_MS:5000}}
     retry-on-5xx: ${APP_DELIVERIES_RETRY_ON_5XX:${DELIVERIES_RETRY_ON_5XX:true}}
     retry-on-429: ${APP_DELIVERIES_RETRY_ON_429:${DELIVERIES_RETRY_ON_429:true}}
-  docs:
-    redirect-enabled: ${DOCS_REDIRECT_ENABLED:false}
 
 management:
   endpoints:
