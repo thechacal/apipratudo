@@ -13,7 +13,7 @@
 
   <groupId>com.apipratudo</groupId>
   <artifactId>quota-service</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.0.1</version>
   <name>quota-service</name>
   <description>Quota Service for apipratudo</description>
 
@@ -54,6 +54,9 @@
   </dependencies>
 
   <build>
+    <!-- Faz o jar virar quota-service-v0.0.1.jar -->
+    <finalName>${project.artifactId}-v${project.version}</finalName>
+
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
