@@ -13,7 +13,7 @@
 
   <groupId>com.apipratudo</groupId>
   <artifactId>api-gateway</artifactId>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <name>api-gateway</name>
   <description>API Gateway for apipratudo</description>
 
@@ -64,7 +64,7 @@
   </dependencies>
 
   <build>
-    <!-- Faz o jar virar api-gateway-v0.0.2.jar -->
+    <!-- gera: target/api-gateway-v0.0.3.jar -->
     <finalName>${project.artifactId}-v${project.version}</finalName>
 
     <plugins>
