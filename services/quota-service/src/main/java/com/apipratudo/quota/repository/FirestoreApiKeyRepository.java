@@ -97,11 +97,13 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     data.put("owner", apiKey.owner());
     data.put("status", apiKey.status().name());
     data.put("createdAt", toTimestamp(apiKey.createdAt()));
+
     ApiKeyLimits limits = apiKey.limits();
     Map<String, Object> limitsData = new HashMap<>();
     limitsData.put("requestsPerMinute", limits.requestsPerMinute());
     limitsData.put("requestsPerDay", limits.requestsPerDay());
     data.put("limits", limitsData);
+
     return data;
   }
 
@@ -110,16 +112,20 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     if (id == null) {
       id = snapshot.getId();
     }
+
     String apiKeyHash = snapshot.getString("apiKeyHash");
     String name = snapshot.getString("name");
     String owner = snapshot.getString("owner");
+
     String statusRaw = snapshot.getString("status");
     ApiKeyStatus status = statusRaw == null ? ApiKeyStatus.ACTIVE : ApiKeyStatus.valueOf(statusRaw);
+
     Map<String, Object> limitsRaw = snapshot.get("limits", Map.class);
     ApiKeyLimits limits = new ApiKeyLimits(
         toInt(limitsRaw, "requestsPerMinute"),
         toInt(limitsRaw, "requestsPerDay")
     );
+
     Instant createdAt = toInstant(snapshot.getTimestamp("createdAt"));
     return new ApiKey(id, apiKeyHash, name, owner, limits, createdAt, status);
   }

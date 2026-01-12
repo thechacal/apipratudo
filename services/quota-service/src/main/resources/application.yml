@@ -5,6 +5,7 @@ server:
 springdoc:
   swagger-ui:
     path: /docs
+    url: /openapi.yaml
 
 app:
   firestore:
@@ -17,6 +18,9 @@ app:
       idempotency-quota: ${APP_IDEMPOTENCY_QUOTA_COLLECTION:${IDEMPOTENCY_QUOTA_COLLECTION:idempotency_quota}}
   quota:
     idempotency-ttl-seconds: ${APP_QUOTA_IDEMPOTENCY_TTL_SECONDS:${QUOTA_IDEMPOTENCY_TTL_SECONDS:86400}}
+  security:
+    admin-token: ${APP_ADMIN_TOKEN:${ADMIN_TOKEN:}}
+    internal-token: ${APP_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
 
 management:
   endpoints:

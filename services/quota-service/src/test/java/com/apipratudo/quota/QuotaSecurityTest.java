@@ -5,10 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -16,12 +14,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class ApiKeyControllerTest {
+class QuotaSecurityTest {
 
   @Autowired
   private MockMvc mockMvc;
@@ -30,31 +27,44 @@ class ApiKeyControllerTest {
   private ObjectMapper objectMapper;
 
   @Test
-  void createAndGetApiKeyHidesSecret() throws Exception {
+  void adminEndpointsRequireToken() throws Exception {
     String body = objectMapper.writeValueAsString(Map.of(
-        "name", "client-" + UUID.randomUUID(),
-        "owner", "owner-" + UUID.randomUUID(),
+        "name", "client",
+        "owner", "owner",
         "limits", Map.of(
             "requestsPerMinute", 10,
             "requestsPerDay", 100
         )
     ));
 
-    MvcResult result = mockMvc.perform(post("/v1/api-keys")
+    mockMvc.perform(post("/v1/api-keys")
             .contentType(MediaType.APPLICATION_JSON)
-            .header("X-Admin-Token", "test-admin")
             .content(body))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.apiKey").isNotEmpty())
-        .andReturn();
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+  }
 
-    JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
-    String id = created.get("id").asText();
+  @Test
+  void internalEndpointsRequireToken() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "apiKey", "invalid",
+        "requestId", "req-1",
+        "route", "GET /v1/webhooks",
+        "cost", 1
+    ));
 
-    mockMvc.perform(get("/v1/api-keys/{id}", id)
-            .header("X-Admin-Token", "test-admin"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(id))
-        .andExpect(jsonPath("$.apiKey").doesNotExist());
+    mockMvc.perform(post("/v1/quota/consume")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  void statusRequiresAdminOrInternalToken() throws Exception {
+    mockMvc.perform(get("/v1/quota/status")
+            .param("apiKey", "any"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
   }
 }

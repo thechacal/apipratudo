@@ -17,6 +17,8 @@ public class QuotaClientProperties {
   @Min(100)
   private long timeoutMs = 3000;
 
+  private String internalToken;
+
   public String getBaseUrl() {
     return baseUrl;
   }
@@ -31,5 +33,13 @@ public class QuotaClientProperties {
 
   public void setTimeoutMs(long timeoutMs) {
     this.timeoutMs = timeoutMs;
+  }
+
+  public String getInternalToken() {
+    return internalToken;
+  }
+
+  public void setInternalToken(String internalToken) {
+    this.internalToken = internalToken;
   }
 }

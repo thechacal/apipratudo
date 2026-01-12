@@ -11,10 +11,12 @@ public class QuotaClient {
 
   private final WebClient webClient;
   private final Duration timeout;
+  private final String internalToken;
 
   public QuotaClient(WebClient.Builder builder, QuotaClientProperties properties) {
     this.webClient = builder.baseUrl(properties.getBaseUrl()).build();
     this.timeout = Duration.ofMillis(properties.getTimeoutMs());
+    this.internalToken = properties.getInternalToken();
   }
 
   public QuotaClientResult consume(String apiKey, String requestId, String route, int cost, String traceId) {
@@ -24,6 +26,8 @@ public class QuotaClient {
         .uri("/v1/quota/consume")
         .contentType(MediaType.APPLICATION_JSON);
 
+    String tokenValue = internalToken == null ? "" : internalToken;
+    spec = spec.header("X-Internal-Token", tokenValue);
     if (StringUtils.hasText(traceId)) {
       spec = spec.header("X-Trace-Id", traceId);
     }
@@ -41,5 +45,24 @@ public class QuotaClient {
     }
 
     return result;
+  }
+
+  public void refund(String apiKey, String requestId, String traceId) {
+    QuotaRefundRequest request = new QuotaRefundRequest(apiKey, requestId);
+
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/v1/quota/refund")
+        .contentType(MediaType.APPLICATION_JSON);
+
+    String tokenValue = internalToken == null ? "" : internalToken;
+    spec = spec.header("X-Internal-Token", tokenValue);
+    if (StringUtils.hasText(traceId)) {
+      spec = spec.header("X-Trace-Id", traceId);
+    }
+
+    spec.bodyValue(request)
+        .exchangeToMono(response -> response.bodyToMono(Void.class))
+        .timeout(timeout)
+        .block(timeout);
   }
 }

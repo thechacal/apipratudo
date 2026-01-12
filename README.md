@@ -116,8 +116,28 @@ sequenceDiagram
 ```
 
 ## Como rodar localmente
-Por enquanto, apenas o api-gateway.
+Use o profile `local` para rodar sem Firestore e com tokens default.
+
+quota-service:
+```bash
+cd services/quota-service
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Ou via env:
+```bash
+cd services/quota-service
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+```
+
+api-gateway:
 ```bash
 cd services/api-gateway
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Ou via env:
+```bash
+cd services/api-gateway
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 ```

@@ -47,6 +47,10 @@ class OpenApiDocsTest {
     Map<String, Object> spec = new ObjectMapper(new YAMLFactory())
         .readValue(body, new TypeReference<>() {});
 
+    Map<String, Object> components = map(spec.get("components"));
+    Map<String, Object> securitySchemes = map(components.get("securitySchemes"));
+    assertThat(securitySchemes).containsKey("ApiKeyAuth");
+
     List<String> deliveryResponseEnums = extractStatusEnum(spec, "DeliveryResponse");
     assertThat(deliveryResponseEnums).containsExactly("PENDING", "SUCCESS", "FAILED");
 
@@ -115,11 +119,16 @@ class OpenApiDocsTest {
 
   @SuppressWarnings("unchecked")
   private List<String> extractStatusEnum(Map<String, Object> spec, String schemaName) {
-    Map<String, Object> components = (Map<String, Object>) spec.get("components");
-    Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
+    Map<String, Object> components = map(spec.get("components"));
+    Map<String, Object> schemas = map(components.get("schemas"));
     Map<String, Object> schema = (Map<String, Object>) schemas.get(schemaName);
-    Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
-    Map<String, Object> status = (Map<String, Object>) properties.get("status");
+    Map<String, Object> properties = map(schema.get("properties"));
+    Map<String, Object> status = map(properties.get("status"));
     return (List<String>) status.get("enum");
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> map(Object value) {
+    return (Map<String, Object>) value;
   }
 }

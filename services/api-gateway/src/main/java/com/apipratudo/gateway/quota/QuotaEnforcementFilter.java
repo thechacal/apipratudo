@@ -7,7 +7,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponseWrapper;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -22,6 +24,8 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(QuotaEnforcementFilter.class);
   private static final String API_KEY_HEADER = "X-Api-Key";
+  private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+  private static final String REQUEST_ID_HEADER = "X-Request-Id";
 
   private final QuotaClient quotaClient;
   private final ObjectMapper objectMapper;
@@ -57,7 +61,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     }
 
     String traceId = TraceIdUtils.resolveTraceId(request);
-    String requestId = StringUtils.hasText(traceId) ? traceId : UUID.randomUUID().toString();
+    String requestId = resolveRequestId(request);
     String route = request.getMethod() + " " + request.getRequestURI();
 
     QuotaClientResult result;
@@ -71,13 +75,30 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     }
 
     if (result.allowed()) {
-      filterChain.doFilter(request, response);
+      StatusCaptureResponseWrapper wrapped = new StatusCaptureResponseWrapper(response);
+      boolean shouldRefund = false;
+      try {
+        filterChain.doFilter(request, wrapped);
+      } catch (Exception ex) {
+        shouldRefund = true;
+        throw ex;
+      } finally {
+        if (shouldRefund || wrapped.getStatus() >= 500) {
+          tryRefund(apiKey, requestId, traceId, route);
+        }
+      }
       return;
     }
 
-    if (result.statusCode() == HttpServletResponse.SC_UNAUTHORIZED) {
-      writeError(response, request, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED",
-          reasonMessage(result.reason(), "Invalid API key"));
+    if (result.statusCode() == HttpServletResponse.SC_UNAUTHORIZED
+        || result.statusCode() == HttpServletResponse.SC_FORBIDDEN) {
+      if ("INVALID_KEY".equals(result.reason())) {
+        writeError(response, request, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED",
+            reasonMessage(result.reason(), "Invalid API key"));
+        return;
+      }
+      writeError(response, request, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "QUOTA_AUTH_MISCONFIGURED",
+          "Quota auth misconfigured");
       return;
     }
 
@@ -89,6 +110,35 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
 
     writeError(response, request, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "QUOTA_UNAVAILABLE",
         "Quota service rejected the request");
+  }
+
+  private void tryRefund(String apiKey, String requestId, String traceId, String route) {
+    try {
+      quotaClient.refund(apiKey, requestId, traceId);
+    } catch (Exception ex) {
+      log.warn("Quota refund failed route={} requestId={} traceId={} error={}", route, requestId, traceId,
+          ex.getMessage());
+    }
+  }
+
+  private String resolveRequestId(HttpServletRequest request) {
+    if (allowsIdempotencyKey(request.getMethod())) {
+      String idempotency = request.getHeader(IDEMPOTENCY_KEY_HEADER);
+      if (StringUtils.hasText(idempotency)) {
+        return idempotency.trim();
+      }
+    }
+    String requestId = request.getHeader(REQUEST_ID_HEADER);
+    if (StringUtils.hasText(requestId)) {
+      return requestId.trim();
+    }
+    return UUID.randomUUID().toString();
+  }
+
+  private boolean allowsIdempotencyKey(String method) {
+    return !("GET".equalsIgnoreCase(method)
+        || "HEAD".equalsIgnoreCase(method)
+        || "OPTIONS".equalsIgnoreCase(method));
   }
 
   private String reasonMessage(String reason, String fallback) {
@@ -106,9 +156,47 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       String message
   ) throws IOException {
     response.setStatus(status);
-    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
     ErrorResponse body = new ErrorResponse(error, message, Collections.emptyList(),
         TraceIdUtils.resolveTraceId(request));
     objectMapper.writeValue(response.getWriter(), body);
+  }
+
+  private static class StatusCaptureResponseWrapper extends HttpServletResponseWrapper {
+    private int httpStatus = HttpServletResponse.SC_OK;
+
+    StatusCaptureResponseWrapper(HttpServletResponse response) {
+      super(response);
+    }
+
+    @Override
+    public void setStatus(int sc) {
+      this.httpStatus = sc;
+      super.setStatus(sc);
+    }
+
+    @Override
+    public void sendError(int sc) throws IOException {
+      this.httpStatus = sc;
+      super.sendError(sc);
+    }
+
+    @Override
+    public void sendError(int sc, String msg) throws IOException {
+      this.httpStatus = sc;
+      super.sendError(sc, msg);
+    }
+
+    @Override
+    public void sendRedirect(String location) throws IOException {
+      this.httpStatus = HttpServletResponse.SC_FOUND;
+      super.sendRedirect(location);
+    }
+
+    @Override
+    public int getStatus() {
+      return httpStatus;
+    }
   }
 }

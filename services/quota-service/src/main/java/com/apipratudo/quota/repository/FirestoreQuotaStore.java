@@ -6,6 +6,9 @@ import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.dto.QuotaReason;
 import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.QuotaDecision;
+import com.apipratudo.quota.model.QuotaRefundDecision;
+import com.apipratudo.quota.model.QuotaStatus;
+import com.apipratudo.quota.model.QuotaWindowStatus;
 import com.apipratudo.quota.model.QuotaWindowType;
 import com.apipratudo.quota.service.HashingUtils;
 import com.google.api.core.ApiFuture;
@@ -48,12 +51,11 @@ public class FirestoreQuotaStore implements QuotaStore {
 
   @Override
   public QuotaDecision consume(ApiKey apiKey, String requestId, String route, int cost) {
-    String idempotencyId = HashingUtils.sha256Hex(apiKey.id() + ":" + requestId);
+    String idempotencyId = idempotencyId(apiKey.id(), requestId);
     Instant now = Instant.now(clock);
     Instant minuteStart = windowStart(QuotaWindowType.MINUTE, now);
     Instant dayStart = windowStart(QuotaWindowType.DAY, now);
-    DocumentReference idempotencyRef = firestore.collection(properties.getCollections().getIdempotencyQuota())
-        .document(idempotencyId);
+    DocumentReference idempotencyRef = idempotencyRef(idempotencyId);
 
     DocumentReference minuteRef = windowRef(apiKey.id(), QuotaWindowType.MINUTE, minuteStart);
     DocumentReference dayRef = windowRef(apiKey.id(), QuotaWindowType.DAY, dayStart);
@@ -76,29 +78,123 @@ public class FirestoreQuotaStore implements QuotaStore {
       WindowDecision day = buildWindowDecision(daySnapshot, apiKey.id(), QuotaWindowType.DAY, dayStart, dayLimit, cost);
 
       QuotaDecision decision;
+      boolean consumed;
       if (minute.exceeded() || day.exceeded()) {
         WindowDecision exceeded = chooseExceeded(minute, day);
         decision = new QuotaDecision(false, QuotaReason.RATE_LIMITED, exceeded.limit(), 0, exceeded.resetAt());
+        consumed = false;
       } else {
         persistWindow(transaction, minuteRef, minuteSnapshot, minute, now);
         persistWindow(transaction, dayRef, daySnapshot, day, now);
         WindowDecision selected = chooseMostRestrictive(minute, day);
         decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
+        consumed = true;
       }
 
-      Map<String, Object> idempotencyData = idempotencyData(apiKey, requestId, route, decision, now);
+      Map<String, Object> idempotencyData = idempotencyData(apiKey, requestId, route, decision, now, cost,
+          minuteStart, dayStart, consumed);
       transaction.set(idempotencyRef, idempotencyData, SetOptions.merge());
       return decision;
     });
 
+    return getFuture(future, "Quota consume interrupted", "Failed to consume quota");
+  }
+
+  @Override
+  public QuotaRefundDecision refund(ApiKey apiKey, String requestId) {
+    String idempotencyId = idempotencyId(apiKey.id(), requestId);
+    Instant now = Instant.now(clock);
+    DocumentReference idempotencyRef = idempotencyRef(idempotencyId);
+
+    ApiFuture<QuotaRefundDecision> future = firestore.runTransaction(transaction -> {
+      DocumentSnapshot snapshot = transaction.get(idempotencyRef).get();
+      if (!snapshot.exists() || isExpired(snapshot, now)) {
+        return new QuotaRefundDecision(false, null, null, null, null);
+      }
+
+      QuotaDecision decision = decisionFromSnapshot(snapshot);
+      boolean refunded = Boolean.TRUE.equals(snapshot.getBoolean("refunded"));
+      boolean consumed = Boolean.TRUE.equals(snapshot.getBoolean("consumed"));
+      if (refunded) {
+        return new QuotaRefundDecision(true, decision.reason(), decision.limit(), decision.remaining(),
+            decision.resetAt());
+      }
+      if (!consumed) {
+        return new QuotaRefundDecision(false, decision.reason(), decision.limit(), decision.remaining(),
+            decision.resetAt());
+      }
+
+      int cost = (int) getLong(snapshot, "cost");
+      Instant minuteStart = toInstant(snapshot.getTimestamp("minuteWindowStart"));
+      Instant dayStart = toInstant(snapshot.getTimestamp("dayWindowStart"));
+
+      if (minuteStart != null) {
+        DocumentReference minuteRef = windowRef(apiKey.id(), QuotaWindowType.MINUTE, minuteStart);
+        DocumentSnapshot minuteSnapshot = transaction.get(minuteRef).get();
+        updateWindowCount(transaction, minuteRef, minuteSnapshot, apiKey.id(), QuotaWindowType.MINUTE,
+            minuteStart, cost, now);
+      }
+      if (dayStart != null) {
+        DocumentReference dayRef = windowRef(apiKey.id(), QuotaWindowType.DAY, dayStart);
+        DocumentSnapshot daySnapshot = transaction.get(dayRef).get();
+        updateWindowCount(transaction, dayRef, daySnapshot, apiKey.id(), QuotaWindowType.DAY, dayStart, cost, now);
+      }
+
+      Map<String, Object> updates = new HashMap<>();
+      updates.put("refunded", true);
+      updates.put("refundedAt", toTimestamp(now));
+      transaction.set(idempotencyRef, updates, SetOptions.merge());
+
+      return new QuotaRefundDecision(true, decision.reason(), decision.limit(), decision.remaining(), decision.resetAt());
+    });
+
+    return getFuture(future, "Quota refund interrupted", "Failed to refund quota");
+  }
+
+  @Override
+  public QuotaStatus status(ApiKey apiKey) {
+    Instant now = Instant.now(clock);
+    Instant minuteStart = windowStart(QuotaWindowType.MINUTE, now);
+    Instant dayStart = windowStart(QuotaWindowType.DAY, now);
+
+    DocumentReference minuteRef = windowRef(apiKey.id(), QuotaWindowType.MINUTE, minuteStart);
+    DocumentReference dayRef = windowRef(apiKey.id(), QuotaWindowType.DAY, dayStart);
+
     try {
-      return future.get();
+      DocumentSnapshot minuteSnapshot = minuteRef.get().get();
+      DocumentSnapshot daySnapshot = dayRef.get().get();
+
+      ApiKeyLimits limits = apiKey.limits();
+      QuotaWindowStatus minute = toWindowStatus(minuteSnapshot, limits.requestsPerMinute(), minuteStart,
+          QuotaWindowType.MINUTE);
+      QuotaWindowStatus day = toWindowStatus(daySnapshot, limits.requestsPerDay(), dayStart, QuotaWindowType.DAY);
+      return new QuotaStatus(minute, day);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new IllegalStateException("Quota consume interrupted", e);
+      throw new IllegalStateException("Quota status interrupted", e);
     } catch (ExecutionException e) {
-      throw new IllegalStateException("Failed to consume quota", e);
+      throw new IllegalStateException("Failed to fetch quota status", e);
     }
+  }
+
+  private QuotaWindowStatus toWindowStatus(
+      DocumentSnapshot snapshot,
+      long limit,
+      Instant windowStart,
+      QuotaWindowType type
+  ) {
+    long used = snapshot.exists() ? getLong(snapshot, "count") : 0;
+    long remaining = Math.max(limit - used, 0);
+    Instant resetAt = windowStart.plus(type.duration());
+    return new QuotaWindowStatus(limit, used, remaining, resetAt);
+  }
+
+  private String idempotencyId(String apiKeyId, String requestId) {
+    return HashingUtils.sha256Hex(apiKeyId + ":" + requestId);
+  }
+
+  private DocumentReference idempotencyRef(String id) {
+    return firestore.collection(properties.getCollections().getIdempotencyQuota()).document(id);
   }
 
   private DocumentReference windowRef(String apiKeyId, QuotaWindowType type, Instant windowStart) {
@@ -143,6 +239,31 @@ public class FirestoreQuotaStore implements QuotaStore {
     transaction.set(ref, data, SetOptions.merge());
   }
 
+  private void updateWindowCount(
+      Transaction transaction,
+      DocumentReference ref,
+      DocumentSnapshot snapshot,
+      String apiKeyId,
+      QuotaWindowType type,
+      Instant windowStart,
+      int cost,
+      Instant now
+  ) {
+    long current = snapshot.exists() ? getLong(snapshot, "count") : 0;
+    long newCount = Math.max(current - cost, 0);
+
+    Map<String, Object> data = new HashMap<>();
+    data.put("apiKeyId", apiKeyId);
+    data.put("windowType", type.name());
+    data.put("windowStart", toTimestamp(windowStart));
+    data.put("count", newCount);
+    data.put("updatedAt", toTimestamp(now));
+    if (!snapshot.exists()) {
+      data.put("createdAt", toTimestamp(now));
+    }
+    transaction.set(ref, data, SetOptions.merge());
+  }
+
   private WindowDecision chooseMostRestrictive(WindowDecision first, WindowDecision second) {
     if (first.remaining() < second.remaining()) {
       return first;
@@ -174,13 +295,22 @@ public class FirestoreQuotaStore implements QuotaStore {
       String requestId,
       String route,
       QuotaDecision decision,
-      Instant now
+      Instant now,
+      int cost,
+      Instant minuteWindowStart,
+      Instant dayWindowStart,
+      boolean consumed
   ) {
     Map<String, Object> data = new HashMap<>();
     data.put("apiKeyId", apiKey.id());
     data.put("requestId", requestId);
     data.put("route", route);
     data.put("allowed", decision.allowed());
+    data.put("consumed", consumed);
+    data.put("refunded", false);
+    data.put("cost", cost);
+    data.put("minuteWindowStart", toTimestamp(minuteWindowStart));
+    data.put("dayWindowStart", toTimestamp(dayWindowStart));
     if (decision.reason() != null) {
       data.put("reason", decision.reason().name());
     }
@@ -209,10 +339,15 @@ public class FirestoreQuotaStore implements QuotaStore {
     long limit = getLong(snapshot, "limit");
     long remaining = getLong(snapshot, "remaining");
     Timestamp resetAt = snapshot.getTimestamp("resetAt");
-    Instant resetAtInstant = resetAt == null
-        ? null
-        : Instant.ofEpochSecond(resetAt.getSeconds(), resetAt.getNanos());
+    Instant resetAtInstant = toInstant(resetAt);
     return new QuotaDecision(allowed, reason, limit, remaining, resetAtInstant);
+  }
+
+  private Instant toInstant(Timestamp timestamp) {
+    if (timestamp == null) {
+      return null;
+    }
+    return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
   }
 
   private long getLong(DocumentSnapshot snapshot, String field) {
@@ -232,6 +367,17 @@ public class FirestoreQuotaStore implements QuotaStore {
       return null;
     }
     return Timestamp.ofTimeSecondsAndNanos(instant.getEpochSecond(), instant.getNano());
+  }
+
+  private <T> T getFuture(ApiFuture<T> future, String interruptedMessage, String failedMessage) {
+    try {
+      return future.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(interruptedMessage, e);
+    } catch (ExecutionException e) {
+      throw new IllegalStateException(failedMessage, e);
+    }
   }
 
   private record WindowDecision(

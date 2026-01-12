@@ -1,3 +1,6 @@
 app:
   firestore:
     enabled: false
+  security:
+    admin-token: test-admin
+    internal-token: test-internal

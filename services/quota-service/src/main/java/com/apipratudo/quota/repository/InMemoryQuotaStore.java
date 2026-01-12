@@ -5,24 +5,28 @@ import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.dto.QuotaReason;
 import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.QuotaDecision;
+import com.apipratudo.quota.model.QuotaRefundDecision;
+import com.apipratudo.quota.model.QuotaStatus;
+import com.apipratudo.quota.model.QuotaWindowStatus;
 import com.apipratudo.quota.model.QuotaWindowType;
+import com.google.cloud.firestore.Firestore;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@ConditionalOnProperty(name = "app.firestore.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnMissingBean(Firestore.class)
 public class InMemoryQuotaStore implements QuotaStore {
 
   private final Clock clock;
   private final QuotaProperties properties;
   private final ConcurrentMap<String, WindowState> windows = new ConcurrentHashMap<>();
-  private final ConcurrentMap<String, IdempotencyEntry> idempotency = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, LedgerEntry> ledger = new ConcurrentHashMap<>();
 
   public InMemoryQuotaStore(Clock clock, QuotaProperties properties) {
     this.clock = clock;
@@ -33,12 +37,12 @@ public class InMemoryQuotaStore implements QuotaStore {
   public synchronized QuotaDecision consume(ApiKey apiKey, String requestId, String route, int cost) {
     Instant now = Instant.now(clock);
     String idempotencyKey = idempotencyKey(apiKey.id(), requestId);
-    IdempotencyEntry existing = idempotency.get(idempotencyKey);
+    LedgerEntry existing = ledger.get(idempotencyKey);
     if (existing != null) {
       if (existing.expiresAt().isAfter(now)) {
         return existing.decision();
       }
-      idempotency.remove(idempotencyKey);
+      ledger.remove(idempotencyKey);
     }
 
     ApiKeyLimits limits = apiKey.limits();
@@ -46,19 +50,77 @@ public class InMemoryQuotaStore implements QuotaStore {
     WindowDecision day = evaluateWindow(apiKey.id(), QuotaWindowType.DAY, limits.requestsPerDay(), cost, now);
 
     QuotaDecision decision;
+    boolean consumed;
     if (minute.exceeded() || day.exceeded()) {
       WindowDecision exceeded = chooseExceeded(minute, day);
       decision = new QuotaDecision(false, QuotaReason.RATE_LIMITED, exceeded.limit(), 0, exceeded.resetAt());
+      consumed = false;
     } else {
       windows.put(minute.windowKey(), new WindowState(minute.newCount(), minute.windowStart()));
       windows.put(day.windowKey(), new WindowState(day.newCount(), day.windowStart()));
       WindowDecision selected = chooseMostRestrictive(minute, day);
       decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
+      consumed = true;
     }
 
     Instant expiresAt = now.plusSeconds(properties.getIdempotencyTtlSeconds());
-    idempotency.put(idempotencyKey, new IdempotencyEntry(decision, expiresAt));
+    ledger.put(idempotencyKey, new LedgerEntry(decision, expiresAt, minute.windowStart(), day.windowStart(), cost,
+        consumed, false));
     return decision;
+  }
+
+  @Override
+  public synchronized QuotaRefundDecision refund(ApiKey apiKey, String requestId) {
+    Instant now = Instant.now(clock);
+    String idempotencyKey = idempotencyKey(apiKey.id(), requestId);
+    LedgerEntry entry = ledger.get(idempotencyKey);
+    if (entry == null || entry.expiresAt().isBefore(now)) {
+      return new QuotaRefundDecision(false, null, null, null, null);
+    }
+    if (entry.refunded()) {
+      return new QuotaRefundDecision(true, entry.decision().reason(), entry.decision().limit(),
+          entry.decision().remaining(), entry.decision().resetAt());
+    }
+    if (!entry.consumed()) {
+      return new QuotaRefundDecision(false, entry.decision().reason(), entry.decision().limit(),
+          entry.decision().remaining(), entry.decision().resetAt());
+    }
+
+    decrementWindow(apiKey.id(), QuotaWindowType.MINUTE, entry.minuteWindowStart(), entry.cost());
+    decrementWindow(apiKey.id(), QuotaWindowType.DAY, entry.dayWindowStart(), entry.cost());
+    LedgerEntry refunded = entry.withRefunded();
+    ledger.put(idempotencyKey, refunded);
+    return new QuotaRefundDecision(true, null, null, null, null);
+  }
+
+  @Override
+  public synchronized QuotaStatus status(ApiKey apiKey) {
+    Instant now = Instant.now(clock);
+    ApiKeyLimits limits = apiKey.limits();
+
+    QuotaWindowStatus minute = readWindow(apiKey.id(), QuotaWindowType.MINUTE, limits.requestsPerMinute(), now);
+    QuotaWindowStatus day = readWindow(apiKey.id(), QuotaWindowType.DAY, limits.requestsPerDay(), now);
+    return new QuotaStatus(minute, day);
+  }
+
+  private void decrementWindow(String apiKeyId, QuotaWindowType type, Instant windowStart, int cost) {
+    String key = windowKey(apiKeyId, type, windowStart);
+    WindowState state = windows.get(key);
+    if (state == null) {
+      return;
+    }
+    long newCount = Math.max(state.count() - cost, 0);
+    windows.put(key, new WindowState(newCount, state.windowStart()));
+  }
+
+  private QuotaWindowStatus readWindow(String apiKeyId, QuotaWindowType type, long limit, Instant now) {
+    Instant windowStart = windowStart(type, now);
+    String key = windowKey(apiKeyId, type, windowStart);
+    WindowState state = windows.get(key);
+    long used = state == null ? 0 : state.count();
+    long remaining = Math.max(limit - used, 0);
+    Instant resetAt = windowStart.plus(type.duration());
+    return new QuotaWindowStatus(limit, used, remaining, resetAt);
   }
 
   private WindowDecision evaluateWindow(
@@ -124,7 +186,19 @@ public class InMemoryQuotaStore implements QuotaStore {
   private record WindowState(long count, Instant windowStart) {
   }
 
-  private record IdempotencyEntry(QuotaDecision decision, Instant expiresAt) {
+  private record LedgerEntry(
+      QuotaDecision decision,
+      Instant expiresAt,
+      Instant minuteWindowStart,
+      Instant dayWindowStart,
+      int cost,
+      boolean consumed,
+      boolean refunded
+  ) {
+
+    LedgerEntry withRefunded() {
+      return new LedgerEntry(decision, expiresAt, minuteWindowStart, dayWindowStart, cost, consumed, true);
+    }
   }
 
   private record WindowDecision(

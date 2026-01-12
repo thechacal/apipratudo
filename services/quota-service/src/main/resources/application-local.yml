@@ -1,0 +1,6 @@
+app:
+  firestore:
+    enabled: false
+  security:
+    admin-token: dev-admin
+    internal-token: dev-internal

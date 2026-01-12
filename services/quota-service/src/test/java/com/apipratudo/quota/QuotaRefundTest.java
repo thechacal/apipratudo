@@ -1,5 +1,7 @@
 package com.apipratudo.quota;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,7 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class QuotaControllerTest {
+class QuotaRefundTest {
 
   @Autowired
   private MockMvc mockMvc;
@@ -29,54 +31,38 @@ class QuotaControllerTest {
   private ObjectMapper objectMapper;
 
   @Test
-  void invalidApiKeyReturns401() throws Exception {
-    String body = objectMapper.writeValueAsString(Map.of(
-        "apiKey", "invalid",
-        "requestId", "req-" + UUID.randomUUID(),
-        "route", "GET /v1/webhooks",
-        "cost", 1
-    ));
-
-    mockMvc.perform(post("/v1/quota/consume")
-            .contentType(MediaType.APPLICATION_JSON)
-            .header("X-Internal-Token", "test-internal")
-            .content(body))
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.allowed").value(false))
-        .andExpect(jsonPath("$.reason").value("INVALID_KEY"));
-  }
-
-  @Test
-  void rateLimitedReturns429() throws Exception {
-    String apiKey = createApiKey(1, 1);
-
-    consume(apiKey, "req-" + UUID.randomUUID())
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.allowed").value(true));
-
-    consume(apiKey, "req-" + UUID.randomUUID())
-        .andExpect(status().isTooManyRequests())
-        .andExpect(jsonPath("$.allowed").value(false))
-        .andExpect(jsonPath("$.reason").value("RATE_LIMITED"));
-  }
-
-  @Test
-  void idempotencyPreventsDoubleCount() throws Exception {
-    String apiKey = createApiKey(1, 1);
+  void refundIsIdempotent() throws Exception {
+    String apiKey = createApiKey(2, 2);
     String requestId = "req-" + UUID.randomUUID();
 
     consume(apiKey, requestId)
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.allowed").value(true));
+        .andExpect(status().isOk());
 
-    consume(apiKey, requestId)
+    refund(apiKey, requestId)
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.allowed").value(true));
+        .andExpect(jsonPath("$.refunded").value(true));
 
-    consume(apiKey, "req-" + UUID.randomUUID())
-        .andExpect(status().isTooManyRequests())
-        .andExpect(jsonPath("$.allowed").value(false))
-        .andExpect(jsonPath("$.reason").value("RATE_LIMITED"));
+    refund(apiKey, requestId)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.refunded").value(true));
+
+    JsonNode status = quotaStatus(apiKey);
+    assertThat(status.get("minute").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("day").get("used").asLong()).isEqualTo(0);
+  }
+
+  @Test
+  void refundWithoutConsumptionIsNoOp() throws Exception {
+    String apiKey = createApiKey(1, 1);
+    String requestId = "req-" + UUID.randomUUID();
+
+    refund(apiKey, requestId)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.refunded").value(false));
+
+    JsonNode status = quotaStatus(apiKey);
+    assertThat(status.get("minute").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("day").get("used").asLong()).isEqualTo(0);
   }
 
   private String createApiKey(int requestsPerMinute, int requestsPerDay) throws Exception {
@@ -94,7 +80,6 @@ class QuotaControllerTest {
             .header("X-Admin-Token", "test-admin")
             .content(body))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.apiKey").isNotEmpty())
         .andReturn();
 
     JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
@@ -113,5 +98,27 @@ class QuotaControllerTest {
         .contentType(MediaType.APPLICATION_JSON)
         .header("X-Internal-Token", "test-internal")
         .content(body));
+  }
+
+  private org.springframework.test.web.servlet.ResultActions refund(String apiKey, String requestId) throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "apiKey", apiKey,
+        "requestId", requestId
+    ));
+
+    return mockMvc.perform(post("/v1/quota/refund")
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Internal-Token", "test-internal")
+        .content(body));
+  }
+
+  private JsonNode quotaStatus(String apiKey) throws Exception {
+    MvcResult result = mockMvc.perform(get("/v1/quota/status")
+            .param("apiKey", apiKey)
+            .header("X-Internal-Token", "test-internal"))
+        .andExpect(status().isOk())
+        .andReturn();
+
+    return objectMapper.readTree(result.getResponse().getContentAsString());
   }
 }

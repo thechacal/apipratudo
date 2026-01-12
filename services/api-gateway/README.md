@@ -4,7 +4,12 @@ Servico Spring Boot 3 (Java 21) para o apipratudo.
 
 ## Como rodar
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Ou via env:
+```bash
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 ```
 
 ## Quota service (API keys)
@@ -13,6 +18,11 @@ O gateway exige o header `X-Api-Key` para rotas `/v1/**` (exceto `/v1/echo`).
 Configuracoes:
 - `QUOTA_BASE_URL` (default `http://localhost:8081`)
 - `QUOTA_TIMEOUT_MS` (default `3000`)
+- `QUOTA_INTERNAL_TOKEN` (token interno para chamar o quota-service)
+
+No profile `local`, o gateway usa:
+- `quota.internal-token=dev-internal`
+- `quota.base-url=http://localhost:8081`
 
 ## Firestore
 Cloud Run (prod):
@@ -39,7 +49,7 @@ Rodar local sem emulator (ADC):
 ```bash
 export APP_FIRESTORE_ENABLED=true
 export GOOGLE_CLOUD_PROJECT=seu-projeto
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 Rodar local com emulator (recomendado para testes):
@@ -52,7 +62,7 @@ Rodar local com emulator manual:
 export APP_FIRESTORE_ENABLED=true
 export GOOGLE_CLOUD_PROJECT=local-dev
 export FIRESTORE_EMULATOR_HOST=localhost:8085
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 ## Deliveries reais (HTTP)

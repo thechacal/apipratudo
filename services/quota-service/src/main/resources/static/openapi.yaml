@@ -1,0 +1,459 @@
+openapi: 3.0.3
+info:
+  title: apipratudo Quota Service
+  version: 0.1.0
+  description: Servico interno para quotas e rate limit do api-gateway.
+servers:
+  - url: https://quota.apipratudo.local
+paths:
+  /v1/api-keys:
+    post:
+      summary: Criar API key
+      description: Endpoint administrativo para criar uma API key.
+      tags:
+        - api-keys
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreateRequest"
+      responses:
+        "201":
+          description: API key criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreateResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token admin invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/api-keys/{id}:
+    get:
+      summary: Obter API key
+      tags:
+        - api-keys
+      security:
+        - AdminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API key encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyResponse"
+        "401":
+          description: Token admin invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/api-keys/{id}/rotate:
+    post:
+      summary: Rotacionar API key
+      tags:
+        - api-keys
+      security:
+        - AdminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API key rotacionada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyRotateResponse"
+        "401":
+          description: Token admin invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/api-keys/{id}/status:
+    patch:
+      summary: Atualizar status da API key
+      tags:
+        - api-keys
+      security:
+        - AdminToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyStatusUpdateRequest"
+      responses:
+        "200":
+          description: Status atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token admin invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/quota/consume:
+    post:
+      summary: Consumir quota
+      description: Endpoint interno para debitar quota.
+      tags:
+        - quota
+      security:
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotaConsumeRequest"
+      responses:
+        "200":
+          description: Consumo permitido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaConsumeResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaConsumeResponse"
+        "429":
+          description: Limite excedido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaConsumeResponse"
+  /v1/quota/refund:
+    post:
+      summary: Reembolsar quota
+      description: Endpoint interno para desfazer consumo.
+      tags:
+        - quota
+      security:
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotaRefundRequest"
+      responses:
+        "200":
+          description: Reembolso processado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaRefundResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaRefundResponse"
+  /v1/quota/status:
+    get:
+      summary: Status de quota
+      description: Endpoint interno/admin para ver uso atual.
+      tags:
+        - quota
+      security:
+        - AdminToken: []
+        - InternalToken: []
+      parameters:
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status atual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaStatusResponse"
+        "401":
+          description: Token invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    AdminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+    InternalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+    ApiKeyStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - DISABLED
+    ApiKeyLimits:
+      type: object
+      required:
+        - requestsPerMinute
+        - requestsPerDay
+      properties:
+        requestsPerMinute:
+          type: integer
+          minimum: 1
+        requestsPerDay:
+          type: integer
+          minimum: 1
+    ApiKeyCreateRequest:
+      type: object
+      required:
+        - name
+        - owner
+        - limits
+      properties:
+        name:
+          type: string
+        owner:
+          type: string
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+    ApiKeyCreateResponse:
+      type: object
+      required:
+        - id
+        - apiKey
+        - name
+        - owner
+        - limits
+        - createdAt
+      properties:
+        id:
+          type: string
+        apiKey:
+          type: string
+        name:
+          type: string
+        owner:
+          type: string
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        createdAt:
+          type: string
+          format: date-time
+    ApiKeyResponse:
+      type: object
+      required:
+        - id
+        - name
+        - owner
+        - limits
+        - createdAt
+        - status
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        owner:
+          type: string
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ApiKeyStatus"
+    ApiKeyRotateResponse:
+      type: object
+      required:
+        - id
+        - apiKey
+      properties:
+        id:
+          type: string
+        apiKey:
+          type: string
+    ApiKeyStatusUpdateRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/ApiKeyStatus"
+    QuotaReason:
+      type: string
+      enum:
+        - INVALID_KEY
+        - RATE_LIMITED
+    QuotaConsumeRequest:
+      type: object
+      required:
+        - apiKey
+        - requestId
+        - route
+      properties:
+        apiKey:
+          type: string
+        requestId:
+          type: string
+        route:
+          type: string
+        cost:
+          type: integer
+          default: 1
+          minimum: 1
+    QuotaConsumeResponse:
+      type: object
+      required:
+        - allowed
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/QuotaReason"
+        limit:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int64
+        resetAt:
+          type: string
+          format: date-time
+    QuotaRefundRequest:
+      type: object
+      required:
+        - apiKey
+        - requestId
+      properties:
+        apiKey:
+          type: string
+        requestId:
+          type: string
+    QuotaRefundResponse:
+      type: object
+      required:
+        - refunded
+      properties:
+        refunded:
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/QuotaReason"
+        limit:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int64
+        resetAt:
+          type: string
+          format: date-time
+    QuotaWindowStatus:
+      type: object
+      required:
+        - limit
+        - used
+        - remaining
+        - resetAt
+      properties:
+        limit:
+          type: integer
+          format: int64
+        used:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int64
+        resetAt:
+          type: string
+          format: date-time
+    QuotaStatusResponse:
+      type: object
+      required:
+        - apiKeyId
+        - minute
+        - day
+      properties:
+        apiKeyId:
+          type: string
+        minute:
+          $ref: "#/components/schemas/QuotaWindowStatus"
+        day:
+          $ref: "#/components/schemas/QuotaWindowStatus"

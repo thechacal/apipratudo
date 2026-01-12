@@ -59,6 +59,7 @@ class DeliveryControllerTest {
     }
     registry.add("quota.base-url", () -> quotaServer.url("/").toString());
     registry.add("quota.timeout-ms", () -> 2000);
+    registry.add("quota.internal-token", () -> "test-internal");
   }
 
   @AfterAll
