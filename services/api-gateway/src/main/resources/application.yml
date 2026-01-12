@@ -7,6 +7,10 @@ springdoc:
     path: /docs
     url: /openapi.yaml
 
+quota:
+  base-url: ${QUOTA_BASE_URL:http://localhost:8081}
+  timeout-ms: ${QUOTA_TIMEOUT_MS:3000}
+
 app:
   firestore:
     enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}

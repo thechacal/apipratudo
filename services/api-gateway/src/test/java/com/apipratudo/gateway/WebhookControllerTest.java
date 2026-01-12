@@ -11,14 +11,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
+import okhttp3.mockwebserver.Dispatcher;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -27,11 +35,43 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 class WebhookControllerTest {
 
+  private static MockWebServer quotaServer;
+
   @Autowired
   private MockMvc mockMvc;
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @DynamicPropertySource
+  static void registerQuotaProperties(DynamicPropertyRegistry registry) {
+    if (quotaServer == null) {
+      quotaServer = new MockWebServer();
+      quotaServer.setDispatcher(new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          return new MockResponse()
+              .setResponseCode(200)
+              .setHeader("Content-Type", "application/json")
+              .setBody("{\"allowed\":true,\"limit\":100,\"remaining\":99}");
+        }
+      });
+      try {
+        quotaServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start quota mock server", e);
+      }
+    }
+    registry.add("quota.base-url", () -> quotaServer.url("/").toString());
+    registry.add("quota.timeout-ms", () -> 2000);
+  }
+
+  @AfterAll
+  static void shutdownQuotaServer() throws IOException {
+    if (quotaServer != null) {
+      quotaServer.shutdown();
+    }
+  }
 
   @Test
   void createWebhookReturnsCreated() throws Exception {
@@ -41,6 +81,7 @@ class WebhookControllerTest {
     ));
 
     mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body))
         .andExpect(status().isCreated())
@@ -56,6 +97,7 @@ class WebhookControllerTest {
     ));
 
     mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body))
         .andExpect(status().isBadRequest())
@@ -74,6 +116,7 @@ class WebhookControllerTest {
 
     MvcResult first = mockMvc.perform(post("/v1/webhooks")
             .header("Idempotency-Key", key)
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body))
         .andExpect(status().isCreated())
@@ -81,6 +124,7 @@ class WebhookControllerTest {
 
     MvcResult second = mockMvc.perform(post("/v1/webhooks")
             .header("Idempotency-Key", key)
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body))
         .andExpect(status().isCreated())
@@ -109,12 +153,14 @@ class WebhookControllerTest {
 
     mockMvc.perform(post("/v1/webhooks")
             .header("Idempotency-Key", key)
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(baseBody))
         .andExpect(status().isCreated());
 
     mockMvc.perform(post("/v1/webhooks")
             .header("Idempotency-Key", key)
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(changedBody))
         .andExpect(status().isConflict())
@@ -124,7 +170,8 @@ class WebhookControllerTest {
 
   @Test
   void getWebhookNotFound() throws Exception {
-    mockMvc.perform(get("/v1/webhooks/nao-existe"))
+    mockMvc.perform(get("/v1/webhooks/nao-existe")
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error").value("NOT_FOUND"));
   }
@@ -137,6 +184,7 @@ class WebhookControllerTest {
     ));
 
     MvcResult created = mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(createBody))
         .andExpect(status().isCreated())
@@ -150,6 +198,7 @@ class WebhookControllerTest {
     ));
 
     mockMvc.perform(patch("/v1/webhooks/{id}", id)
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(patchBody))
         .andExpect(status().isOk())
@@ -166,6 +215,7 @@ class WebhookControllerTest {
     ));
 
     MvcResult created = mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(createBody))
         .andExpect(status().isCreated())
@@ -173,10 +223,12 @@ class WebhookControllerTest {
 
     String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
 
-    mockMvc.perform(delete("/v1/webhooks/{id}", id))
+    mockMvc.perform(delete("/v1/webhooks/{id}", id)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isNoContent());
 
-    mockMvc.perform(get("/v1/webhooks/{id}", id))
+    mockMvc.perform(get("/v1/webhooks/{id}", id)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isNotFound());
   }
 
@@ -188,6 +240,7 @@ class WebhookControllerTest {
     ));
 
     MvcResult created = mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(createBody))
         .andExpect(status().isCreated())
@@ -195,7 +248,8 @@ class WebhookControllerTest {
 
     String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
 
-    mockMvc.perform(post("/v1/webhooks/{id}/test", id))
+    mockMvc.perform(post("/v1/webhooks/{id}/test", id)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.deliveryId").isNotEmpty())
         .andExpect(jsonPath("$.status").value("PENDING"));

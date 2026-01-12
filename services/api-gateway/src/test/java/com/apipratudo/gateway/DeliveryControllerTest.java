@@ -7,13 +7,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Map;
+import okhttp3.mockwebserver.Dispatcher;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -22,11 +30,43 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 class DeliveryControllerTest {
 
+  private static MockWebServer quotaServer;
+
   @Autowired
   private MockMvc mockMvc;
 
   @Autowired
   private ObjectMapper objectMapper;
+
+  @DynamicPropertySource
+  static void registerQuotaProperties(DynamicPropertyRegistry registry) {
+    if (quotaServer == null) {
+      quotaServer = new MockWebServer();
+      quotaServer.setDispatcher(new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          return new MockResponse()
+              .setResponseCode(200)
+              .setHeader("Content-Type", "application/json")
+              .setBody("{\"allowed\":true,\"limit\":100,\"remaining\":99}");
+        }
+      });
+      try {
+        quotaServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start quota mock server", e);
+      }
+    }
+    registry.add("quota.base-url", () -> quotaServer.url("/").toString());
+    registry.add("quota.timeout-ms", () -> 2000);
+  }
+
+  @AfterAll
+  static void shutdownQuotaServer() throws IOException {
+    if (quotaServer != null) {
+      quotaServer.shutdown();
+    }
+  }
 
   @Test
   void listAndRetryDeliveries() throws Exception {
@@ -34,7 +74,8 @@ class DeliveryControllerTest {
     String deliveryId = createDeliveryForWebhook(webhookId);
 
     MvcResult listResult = mockMvc.perform(get("/v1/deliveries")
-            .param("webhookId", webhookId))
+            .param("webhookId", webhookId)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isOk())
         .andReturn();
 
@@ -48,10 +89,12 @@ class DeliveryControllerTest {
     }
     assertThat(contains).isTrue();
 
-    mockMvc.perform(get("/v1/deliveries/{id}", deliveryId))
+    mockMvc.perform(get("/v1/deliveries/{id}", deliveryId)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isOk());
 
-    MvcResult retryResult = mockMvc.perform(post("/v1/deliveries/{id}/retry", deliveryId))
+    MvcResult retryResult = mockMvc.perform(post("/v1/deliveries/{id}/retry", deliveryId)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isCreated())
         .andReturn();
 
@@ -62,7 +105,8 @@ class DeliveryControllerTest {
 
   @Test
   void getDeliveryNotFound() throws Exception {
-    mockMvc.perform(get("/v1/deliveries/nao-existe"))
+    mockMvc.perform(get("/v1/deliveries/nao-existe")
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isNotFound());
   }
 
@@ -73,6 +117,7 @@ class DeliveryControllerTest {
     ));
 
     MvcResult result = mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
             .content(body))
         .andExpect(status().isCreated())
@@ -83,7 +128,8 @@ class DeliveryControllerTest {
   }
 
   private String createDeliveryForWebhook(String webhookId) throws Exception {
-    MvcResult result = mockMvc.perform(post("/v1/webhooks/{id}/test", webhookId))
+    MvcResult result = mockMvc.perform(post("/v1/webhooks/{id}/test", webhookId)
+            .header("X-Api-Key", "test-key"))
         .andExpect(status().isCreated())
         .andReturn();
 

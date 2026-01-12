@@ -7,6 +7,7 @@ import com.apipratudo.gateway.webhook.dto.WebhookListResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookUpdateRequest;
 import com.apipratudo.gateway.webhook.service.WebhookService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v1/webhooks")
 @Validated
 @Tag(name = "webhooks")
+@SecurityRequirement(name = "ApiKeyAuth")
 public class WebhookController {
 
   private final WebhookService webhookService;

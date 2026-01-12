@@ -3,6 +3,7 @@ package com.apipratudo.gateway.webhook.controller;
 import com.apipratudo.gateway.webhook.dto.DeliveryListResponse;
 import com.apipratudo.gateway.webhook.dto.DeliveryResponse;
 import com.apipratudo.gateway.webhook.service.DeliveryService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v1/deliveries")
 @Validated
 @Tag(name = "deliveries")
+@SecurityRequirement(name = "ApiKeyAuth")
 public class DeliveryController {
 
   private final DeliveryService deliveryService;

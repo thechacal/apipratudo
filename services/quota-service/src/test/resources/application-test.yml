@@ -1,0 +1,3 @@
+app:
+  firestore:
+    enabled: false

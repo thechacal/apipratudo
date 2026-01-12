@@ -5,6 +5,8 @@ info:
   description: API Gateway como front door para rotas /v1 do apipratudo.
 servers:
   - url: https://api.apipratudo.local
+security:
+  - ApiKeyAuth: []
 paths:
   /v1/echo:
     get:
@@ -12,6 +14,7 @@ paths:
       description: Endpoint simples de verificacao do servico.
       tags:
         - gateway
+      security: []
       responses:
         "200":
           description: Echo OK
@@ -271,6 +274,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
   schemas:
     EchoResponse:
       type: object

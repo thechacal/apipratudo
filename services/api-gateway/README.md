@@ -7,6 +7,13 @@ Servico Spring Boot 3 (Java 21) para o apipratudo.
 mvn spring-boot:run
 ```
 
+## Quota service (API keys)
+O gateway exige o header `X-Api-Key` para rotas `/v1/**` (exceto `/v1/echo`).
+
+Configuracoes:
+- `QUOTA_BASE_URL` (default `http://localhost:8081`)
+- `QUOTA_TIMEOUT_MS` (default `3000`)
+
 ## Firestore
 Cloud Run (prod):
 - `APP_FIRESTORE_ENABLED=true`
@@ -96,18 +103,22 @@ curl -X POST http://localhost:8080/v1/webhooks/{id}/test
 ```bash
 curl -X POST http://localhost:8080/v1/webhooks \\
   -H 'Content-Type: application/json' \\
+  -H 'X-Api-Key: sua-api-key' \\
   -H 'Idempotency-Key: webhook-123' \\
   -d '{\"targetUrl\":\"https://cliente.exemplo.com/webhooks/apipratudo\",\"eventType\":\"invoice.paid\"}'
 ```
 
 ```bash
-curl http://localhost:8080/v1/webhooks?page=1&size=20
+curl http://localhost:8080/v1/webhooks?page=1&size=20 \\
+  -H 'X-Api-Key: sua-api-key'
 ```
 
 ```bash
-curl -X POST http://localhost:8080/v1/webhooks/{id}/test
+curl -X POST http://localhost:8080/v1/webhooks/{id}/test \\
+  -H 'X-Api-Key: sua-api-key'
 ```
 
 ```bash
-curl http://localhost:8080/v1/deliveries?webhookId={id}
+curl http://localhost:8080/v1/deliveries?webhookId={id} \\
+  -H 'X-Api-Key: sua-api-key'
 ```

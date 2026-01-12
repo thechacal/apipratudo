@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - services/api-gateway
+          - services/quota-service
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: mvn test
+        run: mvn -B test
+      - name: docker build
+        if: ${{ hashFiles(format('{0}/Dockerfile', matrix.service)) != '' }}
+        run: docker build -t ${{ matrix.service }} .
