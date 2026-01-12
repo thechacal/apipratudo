@@ -6,6 +6,11 @@ on:
       - "api-gateway-v*"
       - "quota-service-v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (ex: api-gateway-v0.0.2)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,32 +19,75 @@ jobs:
   release:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - service: services/api-gateway
+          - name: api-gateway
+            service: services/api-gateway
             tag_prefix: api-gateway-v
-          - service: services/quota-service
+          - name: quota-service
+            service: services/quota-service
             tag_prefix: quota-service-v
 
-    if: startsWith(github.ref_name, matrix.tag_prefix)
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Match tag to matrix entry
+        id: match
+        shell: bash
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          PREFIX="${{ matrix.tag_prefix }}"
+          if [[ "$TAG" == ${PREFIX}* ]]; then
+            echo "match=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "match=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Java
+        if: steps.match.outputs.match == 'true'
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
           cache: maven
 
-      - name: mvn package (${{ matrix.service }})
-        if: ${{ hashFiles(format('{0}/pom.xml', matrix.service)) != '' }}
+      - name: Maven package
+        if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
         working-directory: ${{ matrix.service }}
         run: mvn -B -ntp -DskipTests package
 
-      - name: create github release
+      - name: Locate JAR
+        if: steps.match.outputs.match == 'true'
+        id: jar
+        shell: bash
+        run: |
+          JAR="$(ls -1 "${{ matrix.service }}"/target/*.jar 2>/dev/null | grep -vE '(sources|javadoc)\.jar$' | head -n 1 || true)"
+          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          if [ -z "$JAR" ]; then
+            echo "No JAR found in ${{ matrix.service }}/target"
+          else
+            echo "Found: $JAR"
+          fi
+
+      - name: Create GitHub Release (and upload JAR)
+        if: steps.match.outputs.match == 'true' && steps.jar.outputs.jar != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
-            ${{ matrix.service }}/target/*.jar
+            ${{ steps.jar.outputs.jar }}
