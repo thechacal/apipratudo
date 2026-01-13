@@ -12,6 +12,7 @@ import com.apipratudo.quota.model.ApiKeyStatus;
 import com.apipratudo.quota.model.QuotaDecision;
 import com.apipratudo.quota.model.QuotaRefundDecision;
 import com.apipratudo.quota.model.QuotaStatus;
+import com.apipratudo.quota.model.QuotaWindows;
 import com.apipratudo.quota.repository.ApiKeyRepository;
 import com.apipratudo.quota.repository.QuotaStore;
 import java.util.Optional;
@@ -23,10 +24,16 @@ public class QuotaService {
 
   private final ApiKeyRepository apiKeyRepository;
   private final QuotaStore quotaStore;
+  private final QuotaWindowCalculator windowCalculator;
 
-  public QuotaService(ApiKeyRepository apiKeyRepository, QuotaStore quotaStore) {
+  public QuotaService(
+      ApiKeyRepository apiKeyRepository,
+      QuotaStore quotaStore,
+      QuotaWindowCalculator windowCalculator
+  ) {
     this.apiKeyRepository = apiKeyRepository;
     this.quotaStore = quotaStore;
+    this.windowCalculator = windowCalculator;
   }
 
   public QuotaConsumeResult consume(QuotaConsumeRequest request) {
@@ -37,7 +44,8 @@ public class QuotaService {
       return new QuotaConsumeResult(HttpStatus.UNAUTHORIZED, response);
     }
 
-    QuotaDecision decision = quotaStore.consume(apiKey.get(), request.requestId(), request.route(), cost);
+    QuotaWindows windows = windowCalculator.currentWindows();
+    QuotaDecision decision = quotaStore.consume(apiKey.get(), request.requestId(), request.route(), cost, windows);
     HttpStatus status = decision.allowed() ? HttpStatus.OK : HttpStatus.TOO_MANY_REQUESTS;
     QuotaConsumeResponse response = new QuotaConsumeResponse(
         decision.allowed(),
@@ -73,7 +81,8 @@ public class QuotaService {
       throw new ResourceNotFoundException("API key not found");
     }
 
-    QuotaStatus status = quotaStore.status(apiKey.get());
+    QuotaWindows windows = windowCalculator.currentWindows();
+    QuotaStatus status = quotaStore.status(apiKey.get(), windows);
     return new QuotaStatusResponse(
         apiKey.get().id(),
         new QuotaStatusResponse.QuotaWindowStatus(

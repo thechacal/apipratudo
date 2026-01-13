@@ -7,13 +7,13 @@ import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.QuotaDecision;
 import com.apipratudo.quota.model.QuotaRefundDecision;
 import com.apipratudo.quota.model.QuotaStatus;
+import com.apipratudo.quota.model.QuotaWindow;
 import com.apipratudo.quota.model.QuotaWindowStatus;
 import com.apipratudo.quota.model.QuotaWindowType;
+import com.apipratudo.quota.model.QuotaWindows;
 import com.google.cloud.firestore.Firestore;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -34,7 +34,13 @@ public class InMemoryQuotaStore implements QuotaStore {
   }
 
   @Override
-  public synchronized QuotaDecision consume(ApiKey apiKey, String requestId, String route, int cost) {
+  public synchronized QuotaDecision consume(
+      ApiKey apiKey,
+      String requestId,
+      String route,
+      int cost,
+      QuotaWindows windowsSnapshot
+  ) {
     Instant now = Instant.now(clock);
     String idempotencyKey = idempotencyKey(apiKey.id(), requestId);
     LedgerEntry existing = ledger.get(idempotencyKey);
@@ -46,8 +52,10 @@ public class InMemoryQuotaStore implements QuotaStore {
     }
 
     ApiKeyLimits limits = apiKey.limits();
-    WindowDecision minute = evaluateWindow(apiKey.id(), QuotaWindowType.MINUTE, limits.requestsPerMinute(), cost, now);
-    WindowDecision day = evaluateWindow(apiKey.id(), QuotaWindowType.DAY, limits.requestsPerDay(), cost, now);
+    QuotaWindow minuteWindow = windowsSnapshot.minute();
+    QuotaWindow dayWindow = windowsSnapshot.day();
+    WindowDecision minute = evaluateWindow(apiKey.id(), minuteWindow, limits.requestsPerMinute(), cost);
+    WindowDecision day = evaluateWindow(apiKey.id(), dayWindow, limits.requestsPerDay(), cost);
 
     QuotaDecision decision;
     boolean consumed;
@@ -94,12 +102,11 @@ public class InMemoryQuotaStore implements QuotaStore {
   }
 
   @Override
-  public synchronized QuotaStatus status(ApiKey apiKey) {
-    Instant now = Instant.now(clock);
+  public synchronized QuotaStatus status(ApiKey apiKey, QuotaWindows windowsSnapshot) {
     ApiKeyLimits limits = apiKey.limits();
 
-    QuotaWindowStatus minute = readWindow(apiKey.id(), QuotaWindowType.MINUTE, limits.requestsPerMinute(), now);
-    QuotaWindowStatus day = readWindow(apiKey.id(), QuotaWindowType.DAY, limits.requestsPerDay(), now);
+    QuotaWindowStatus minute = readWindow(apiKey.id(), windowsSnapshot.minute(), limits.requestsPerMinute());
+    QuotaWindowStatus day = readWindow(apiKey.id(), windowsSnapshot.day(), limits.requestsPerDay());
     return new QuotaStatus(minute, day);
   }
 
@@ -113,33 +120,29 @@ public class InMemoryQuotaStore implements QuotaStore {
     windows.put(key, new WindowState(newCount, state.windowStart()));
   }
 
-  private QuotaWindowStatus readWindow(String apiKeyId, QuotaWindowType type, long limit, Instant now) {
-    Instant windowStart = windowStart(type, now);
-    String key = windowKey(apiKeyId, type, windowStart);
+  private QuotaWindowStatus readWindow(String apiKeyId, QuotaWindow window, long limit) {
+    String key = windowKey(apiKeyId, window);
     WindowState state = windows.get(key);
     long used = state == null ? 0 : state.count();
     long remaining = Math.max(limit - used, 0);
-    Instant resetAt = windowStart.plus(type.duration());
-    return new QuotaWindowStatus(limit, used, remaining, resetAt);
+    return new QuotaWindowStatus(limit, used, remaining, window.resetAt());
   }
 
   private WindowDecision evaluateWindow(
       String apiKeyId,
-      QuotaWindowType type,
+      QuotaWindow window,
       long limit,
-      int cost,
-      Instant now
+      int cost
   ) {
-    Instant windowStart = windowStart(type, now);
-    String key = windowKey(apiKeyId, type, windowStart);
+    String key = windowKey(apiKeyId, window);
     WindowState state = windows.get(key);
     long current = state == null ? 0 : state.count();
     long newCount = current + cost;
     long remaining = Math.max(limit - newCount, 0);
     long overage = Math.max(newCount - limit, 0);
     boolean exceeded = newCount > limit;
-    Instant resetAt = windowStart.plus(type.duration());
-    return new WindowDecision(key, windowStart, limit, current, newCount, remaining, overage, resetAt, exceeded);
+    return new WindowDecision(key, window.windowStart(), limit, current, newCount, remaining, overage,
+        window.resetAt(), exceeded);
   }
 
   private WindowDecision chooseMostRestrictive(WindowDecision first, WindowDecision second) {
@@ -168,11 +171,8 @@ public class InMemoryQuotaStore implements QuotaStore {
     return first.resetAt().isBefore(second.resetAt()) ? first : second;
   }
 
-  private Instant windowStart(QuotaWindowType type, Instant now) {
-    return switch (type) {
-      case MINUTE -> now.truncatedTo(ChronoUnit.MINUTES);
-      case DAY -> now.atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-    };
+  private String windowKey(String apiKeyId, QuotaWindow window) {
+    return windowKey(apiKeyId, window.type(), window.windowStart());
   }
 
   private String windowKey(String apiKeyId, QuotaWindowType type, Instant windowStart) {

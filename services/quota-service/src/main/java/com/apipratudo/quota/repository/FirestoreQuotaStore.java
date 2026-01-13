@@ -8,8 +8,10 @@ import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.QuotaDecision;
 import com.apipratudo.quota.model.QuotaRefundDecision;
 import com.apipratudo.quota.model.QuotaStatus;
+import com.apipratudo.quota.model.QuotaWindow;
 import com.apipratudo.quota.model.QuotaWindowStatus;
 import com.apipratudo.quota.model.QuotaWindowType;
+import com.apipratudo.quota.model.QuotaWindows;
 import com.apipratudo.quota.service.HashingUtils;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.Timestamp;
@@ -20,8 +22,6 @@ import com.google.cloud.firestore.SetOptions;
 import com.google.cloud.firestore.Transaction;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -50,15 +50,21 @@ public class FirestoreQuotaStore implements QuotaStore {
   }
 
   @Override
-  public QuotaDecision consume(ApiKey apiKey, String requestId, String route, int cost) {
+  public QuotaDecision consume(
+      ApiKey apiKey,
+      String requestId,
+      String route,
+      int cost,
+      QuotaWindows windowsSnapshot
+  ) {
     String idempotencyId = idempotencyId(apiKey.id(), requestId);
     Instant now = Instant.now(clock);
-    Instant minuteStart = windowStart(QuotaWindowType.MINUTE, now);
-    Instant dayStart = windowStart(QuotaWindowType.DAY, now);
+    QuotaWindow minuteWindow = windowsSnapshot.minute();
+    QuotaWindow dayWindow = windowsSnapshot.day();
     DocumentReference idempotencyRef = idempotencyRef(idempotencyId);
 
-    DocumentReference minuteRef = windowRef(apiKey.id(), QuotaWindowType.MINUTE, minuteStart);
-    DocumentReference dayRef = windowRef(apiKey.id(), QuotaWindowType.DAY, dayStart);
+    DocumentReference minuteRef = windowRef(apiKey.id(), minuteWindow);
+    DocumentReference dayRef = windowRef(apiKey.id(), dayWindow);
 
     ApiKeyLimits limits = apiKey.limits();
     long minuteLimit = limits.requestsPerMinute();
@@ -73,9 +79,8 @@ public class FirestoreQuotaStore implements QuotaStore {
       DocumentSnapshot minuteSnapshot = transaction.get(minuteRef).get();
       DocumentSnapshot daySnapshot = transaction.get(dayRef).get();
 
-      WindowDecision minute = buildWindowDecision(minuteSnapshot, apiKey.id(), QuotaWindowType.MINUTE, minuteStart,
-          minuteLimit, cost);
-      WindowDecision day = buildWindowDecision(daySnapshot, apiKey.id(), QuotaWindowType.DAY, dayStart, dayLimit, cost);
+      WindowDecision minute = buildWindowDecision(minuteSnapshot, apiKey.id(), minuteWindow, minuteLimit, cost);
+      WindowDecision day = buildWindowDecision(daySnapshot, apiKey.id(), dayWindow, dayLimit, cost);
 
       QuotaDecision decision;
       boolean consumed;
@@ -92,7 +97,7 @@ public class FirestoreQuotaStore implements QuotaStore {
       }
 
       Map<String, Object> idempotencyData = idempotencyData(apiKey, requestId, route, decision, now, cost,
-          minuteStart, dayStart, consumed);
+          minuteWindow, dayWindow, consumed);
       transaction.set(idempotencyRef, idempotencyData, SetOptions.merge());
       return decision;
     });
@@ -152,22 +157,20 @@ public class FirestoreQuotaStore implements QuotaStore {
   }
 
   @Override
-  public QuotaStatus status(ApiKey apiKey) {
-    Instant now = Instant.now(clock);
-    Instant minuteStart = windowStart(QuotaWindowType.MINUTE, now);
-    Instant dayStart = windowStart(QuotaWindowType.DAY, now);
+  public QuotaStatus status(ApiKey apiKey, QuotaWindows windowsSnapshot) {
+    QuotaWindow minuteWindow = windowsSnapshot.minute();
+    QuotaWindow dayWindow = windowsSnapshot.day();
 
-    DocumentReference minuteRef = windowRef(apiKey.id(), QuotaWindowType.MINUTE, minuteStart);
-    DocumentReference dayRef = windowRef(apiKey.id(), QuotaWindowType.DAY, dayStart);
+    DocumentReference minuteRef = windowRef(apiKey.id(), minuteWindow);
+    DocumentReference dayRef = windowRef(apiKey.id(), dayWindow);
 
     try {
       DocumentSnapshot minuteSnapshot = minuteRef.get().get();
       DocumentSnapshot daySnapshot = dayRef.get().get();
 
       ApiKeyLimits limits = apiKey.limits();
-      QuotaWindowStatus minute = toWindowStatus(minuteSnapshot, limits.requestsPerMinute(), minuteStart,
-          QuotaWindowType.MINUTE);
-      QuotaWindowStatus day = toWindowStatus(daySnapshot, limits.requestsPerDay(), dayStart, QuotaWindowType.DAY);
+      QuotaWindowStatus minute = toWindowStatus(minuteSnapshot, limits.requestsPerMinute(), minuteWindow);
+      QuotaWindowStatus day = toWindowStatus(daySnapshot, limits.requestsPerDay(), dayWindow);
       return new QuotaStatus(minute, day);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -180,13 +183,11 @@ public class FirestoreQuotaStore implements QuotaStore {
   private QuotaWindowStatus toWindowStatus(
       DocumentSnapshot snapshot,
       long limit,
-      Instant windowStart,
-      QuotaWindowType type
+      QuotaWindow window
   ) {
     long used = snapshot.exists() ? getLong(snapshot, "count") : 0;
     long remaining = Math.max(limit - used, 0);
-    Instant resetAt = windowStart.plus(type.duration());
-    return new QuotaWindowStatus(limit, used, remaining, resetAt);
+    return new QuotaWindowStatus(limit, used, remaining, window.resetAt());
   }
 
   private String idempotencyId(String apiKeyId, String requestId) {
@@ -197,6 +198,10 @@ public class FirestoreQuotaStore implements QuotaStore {
     return firestore.collection(properties.getCollections().getIdempotencyQuota()).document(id);
   }
 
+  private DocumentReference windowRef(String apiKeyId, QuotaWindow window) {
+    return windowRef(apiKeyId, window.type(), window.windowStart());
+  }
+
   private DocumentReference windowRef(String apiKeyId, QuotaWindowType type, Instant windowStart) {
     String docId = apiKeyId + "_" + type.name() + "_" + windowStart.toEpochMilli();
     return firestore.collection(properties.getCollections().getQuotaWindows()).document(docId);
@@ -205,8 +210,7 @@ public class FirestoreQuotaStore implements QuotaStore {
   private WindowDecision buildWindowDecision(
       DocumentSnapshot snapshot,
       String apiKeyId,
-      QuotaWindowType type,
-      Instant windowStart,
+      QuotaWindow window,
       long limit,
       int cost
   ) {
@@ -215,8 +219,8 @@ public class FirestoreQuotaStore implements QuotaStore {
     long remaining = Math.max(limit - newCount, 0);
     long overage = Math.max(newCount - limit, 0);
     boolean exceeded = newCount > limit;
-    Instant resetAt = windowStart.plus(type.duration());
-    return new WindowDecision(apiKeyId, type, windowStart, limit, current, newCount, remaining, overage, resetAt,
+    return new WindowDecision(apiKeyId, window.type(), window.windowStart(), limit, current, newCount, remaining,
+        overage, window.resetAt(),
         exceeded);
   }
 
@@ -297,8 +301,8 @@ public class FirestoreQuotaStore implements QuotaStore {
       QuotaDecision decision,
       Instant now,
       int cost,
-      Instant minuteWindowStart,
-      Instant dayWindowStart,
+      QuotaWindow minuteWindow,
+      QuotaWindow dayWindow,
       boolean consumed
   ) {
     Map<String, Object> data = new HashMap<>();
@@ -309,8 +313,8 @@ public class FirestoreQuotaStore implements QuotaStore {
     data.put("consumed", consumed);
     data.put("refunded", false);
     data.put("cost", cost);
-    data.put("minuteWindowStart", toTimestamp(minuteWindowStart));
-    data.put("dayWindowStart", toTimestamp(dayWindowStart));
+    data.put("minuteWindowStart", toTimestamp(minuteWindow.windowStart()));
+    data.put("dayWindowStart", toTimestamp(dayWindow.windowStart()));
     if (decision.reason() != null) {
       data.put("reason", decision.reason().name());
     }
@@ -353,13 +357,6 @@ public class FirestoreQuotaStore implements QuotaStore {
   private long getLong(DocumentSnapshot snapshot, String field) {
     Long value = snapshot.getLong(field);
     return value == null ? 0 : value;
-  }
-
-  private Instant windowStart(QuotaWindowType type, Instant now) {
-    return switch (type) {
-      case MINUTE -> now.truncatedTo(ChronoUnit.MINUTES);
-      case DAY -> now.atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant();
-    };
   }
 
   private Timestamp toTimestamp(Instant instant) {
