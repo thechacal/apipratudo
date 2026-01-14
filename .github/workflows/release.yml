@@ -61,6 +61,25 @@ jobs:
             echo "match=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Derive version from tag
+        if: steps.match.outputs.match == 'true'
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          PREFIX="${{ matrix.tag_prefix }}"
+          if [[ "$TAG" != ${PREFIX}* ]]; then
+            echo "Tag $TAG does not start with prefix $PREFIX"
+            exit 1
+          fi
+          VERSION="${TAG#${PREFIX}}"
+          if [ -z "$VERSION" ]; then
+            echo "Empty version parsed from tag $TAG"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Setup Java
         if: steps.match.outputs.match == 'true'
         uses: actions/setup-java@v4
@@ -69,28 +88,52 @@ jobs:
           java-version: "21"
           cache: maven
 
+      - name: Set Maven version from tag
+        if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
+        run: |
+          mvn -B -ntp -f "${{ matrix.service }}/pom.xml" versions:set \
+            -DnewVersion="${{ steps.ver.outputs.version }}" \
+            -DgenerateBackupPoms=false
+
+      - name: Validate Maven version
+        if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          V=$(mvn -q -ntp -f "${{ matrix.service }}/pom.xml" help:evaluate \
+            -Dexpression=project.version -DforceStdout)
+          if [ "$V" != "${{ steps.ver.outputs.version }}" ]; then
+            echo "Version mismatch: pom=$V tag=${{ steps.ver.outputs.version }}"
+            exit 1
+          fi
+
       - name: Maven package
         if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
         run: mvn -B -ntp -DskipTests -f "${{ matrix.service }}/pom.xml" package
 
-      - name: Locate JAR
+      - name: Prepare release asset
         if: steps.match.outputs.match == 'true'
-        id: jar
         shell: bash
         run: |
-          JAR="$(ls -1 "${{ matrix.service }}"/target/*.jar 2>/dev/null | grep -vE '(sources|javadoc)\.jar$' | head -n 1 || true)"
-          echo "jar=$JAR" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          mkdir -p release-assets
+          JAR=$(find "${{ matrix.service }}/target" -maxdepth 1 -type f -name "*.jar" \
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "original-*.jar" | head -n 1)
           if [ -z "$JAR" ]; then
-            echo "No JAR found in ${{ matrix.service }}/target"
-          else
-            echo "Found: $JAR"
+            echo "No bootable JAR found in ${{ matrix.service }}/target"
+            exit 1
+          fi
+          cp "$JAR" "release-assets/${{ steps.tag.outputs.tag }}.jar"
+          if [ ! -f "release-assets/${{ steps.tag.outputs.tag }}.jar" ]; then
+            echo "Release asset not found: release-assets/${{ steps.tag.outputs.tag }}.jar"
+            exit 1
           fi
 
       - name: Create GitHub Release (and upload JAR)
-        if: steps.match.outputs.match == 'true' && steps.jar.outputs.jar != ''
+        if: steps.match.outputs.match == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
-            ${{ steps.jar.outputs.jar }}
+            release-assets/${{ steps.tag.outputs.tag }}.jar
