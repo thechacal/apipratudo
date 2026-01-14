@@ -1,0 +1,4 @@
+app:
+  playwright:
+    timeout-ms: 12000
+    navigation-timeout-ms: 12000

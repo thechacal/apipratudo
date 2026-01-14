@@ -7,3 +7,5 @@ quota:
 webhook:
   base-url: http://localhost:8082
   service-token: dev-service-token
+federal:
+  base-url: http://localhost:8083
