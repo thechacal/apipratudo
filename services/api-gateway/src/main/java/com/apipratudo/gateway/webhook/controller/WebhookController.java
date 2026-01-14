@@ -85,8 +85,11 @@ public class WebhookController {
   }
 
   @PostMapping("/{id}/test")
-  public ResponseEntity<DeliveryTestResponse> test(@PathVariable String id) {
-    DeliveryTestResponse response = webhookService.test(id);
+  public ResponseEntity<DeliveryTestResponse> test(
+      @PathVariable String id,
+      @RequestHeader("X-Api-Key") String apiKey
+  ) {
+    DeliveryTestResponse response = webhookService.test(apiKey, id);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 }

@@ -104,9 +104,9 @@ public class WebhookService {
     log.info("Webhook deleted id={} status={} traceId={}", existing.id(), deleted.status(), traceId());
   }
 
-  public DeliveryTestResponse test(String id) {
+  public DeliveryTestResponse test(String apiKey, String id) {
     Webhook webhook = requireWebhook(id);
-    DeliveryTestResponse response = deliveryService.createTestDelivery(webhook);
+    DeliveryTestResponse response = deliveryService.createTestDelivery(apiKey, webhook);
     log.info("Webhook test delivery created deliveryId={} webhookId={} status={} traceId={}",
         response.deliveryId(), webhook.id(), response.status(), traceId());
     return response;

@@ -94,6 +94,7 @@ class WebhookControllerTest {
     registry.add("quota.internal-token", () -> "test-internal");
     registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
     registry.add("webhook.timeout-ms", () -> 2000);
+    registry.add("webhook.service-token", () -> "test-service");
   }
 
   @AfterAll
@@ -328,6 +329,44 @@ class WebhookControllerTest {
         .andExpect(jsonPath("$.status").value("PENDING"));
   }
 
+  @Test
+  void testWebhookPublishesEvent() throws Exception {
+    String createBody = objectMapper.writeValueAsString(Map.of(
+        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
+        "eventType", "invoice.paid"
+    ));
+
+    MvcResult created = mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(createBody))
+        .andExpect(status().isCreated())
+        .andReturn();
+
+    String id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+    MvcResult testDelivery = mockMvc.perform(post("/v1/webhooks/{id}/test", id)
+            .header("X-Api-Key", "test-key"))
+        .andExpect(status().isCreated())
+        .andReturn();
+
+    String deliveryId = objectMapper.readTree(testDelivery.getResponse().getContentAsString())
+        .get("deliveryId").asText();
+
+    RecordedRequest createRequest = webhookServer.takeRequest(2, TimeUnit.SECONDS);
+    RecordedRequest eventRequest = webhookServer.takeRequest(2, TimeUnit.SECONDS);
+
+    assertThat(createRequest).isNotNull();
+    assertThat(eventRequest).isNotNull();
+    assertThat(eventRequest.getPath()).isEqualTo("/internal/events");
+    assertThat(eventRequest.getHeader("X-Service-Token")).isEqualTo("test-service");
+
+    JsonNode eventBody = objectMapper.readTree(eventRequest.getBody().readUtf8());
+    assertThat(eventBody.get("event").asText()).isEqualTo("delivery.created");
+    assertThat(eventBody.get("apiKey").asText()).isEqualTo("test-key");
+    assertThat(eventBody.get("data").get("deliveryId").asText()).isEqualTo(deliveryId);
+  }
+
   private static MockResponse webhookResponse(RecordedRequest request) {
     try {
       if ("GET".equals(request.getMethod())) {
@@ -364,6 +403,10 @@ class WebhookControllerTest {
               .setHeader("Content-Type", "application/json")
               .setBody(responseBody);
         }
+      }
+
+      if ("POST".equals(request.getMethod()) && "/internal/events".equals(request.getPath())) {
+        return new MockResponse().setResponseCode(202);
       }
 
       String idempotencyKey = request.getHeader("Idempotency-Key");

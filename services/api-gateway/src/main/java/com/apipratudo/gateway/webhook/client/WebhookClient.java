@@ -14,10 +14,12 @@ public class WebhookClient {
 
   private final WebClient webClient;
   private final Duration timeout;
+  private final String serviceToken;
 
   public WebhookClient(WebClient.Builder builder, WebhookClientProperties properties) {
     this.webClient = builder.baseUrl(properties.getBaseUrl()).build();
     this.timeout = Duration.ofMillis(properties.getTimeoutMs());
+    this.serviceToken = properties.getServiceToken();
   }
 
   public WebhookClientResult create(
@@ -111,5 +113,33 @@ public class WebhookClient {
     }
 
     return result;
+  }
+
+  public void publishEvent(WebhookEventRequest request, String traceId) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/internal/events")
+        .contentType(MediaType.APPLICATION_JSON);
+
+    if (StringUtils.hasText(serviceToken)) {
+      spec = spec.header("X-Service-Token", serviceToken);
+    }
+    if (StringUtils.hasText(traceId)) {
+      spec = spec.header("X-Trace-Id", traceId);
+    }
+
+    WebhookClientRawResult result = spec
+        .bodyValue(request)
+        .exchangeToMono(response -> response.bodyToMono(String.class)
+            .defaultIfEmpty("")
+            .map(body -> new WebhookClientRawResult(response.statusCode().value(), body)))
+        .timeout(timeout)
+        .block(timeout);
+
+    if (result == null) {
+      throw new IllegalStateException("Webhook service returned empty response");
+    }
+    if (result.statusCode() >= 300) {
+      throw new IllegalStateException("Webhook event publish failed status=" + result.statusCode());
+    }
   }
 }

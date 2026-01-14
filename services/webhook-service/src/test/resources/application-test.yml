@@ -1,3 +1,10 @@
 app:
   firestore:
     enabled: false
+  security:
+    service-token: test-service
+  dispatcher:
+    interval-ms: 200
+    max-attempts: 5
+    timeout-ms: 1000
+    batch-size: 10

@@ -15,6 +15,7 @@ quota:
 webhook:
   base-url: ${WEBHOOK_BASE_URL:http://localhost:8082}
   timeout-ms: ${WEBHOOK_TIMEOUT_MS:3000}
+  service-token: ${WEBHOOK_SERVICE_TOKEN:}
 
 app:
   firestore:

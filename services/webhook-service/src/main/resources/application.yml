@@ -7,12 +7,20 @@ springdoc:
     path: /docs
 
 app:
+  security:
+    service-token: ${APP_SERVICE_TOKEN:${WEBHOOK_SERVICE_TOKEN:}}
+  dispatcher:
+    interval-ms: ${APP_DISPATCHER_INTERVAL_MS:1000}
+    max-attempts: ${APP_DISPATCHER_MAX_ATTEMPTS:5}
+    timeout-ms: ${APP_DISPATCHER_TIMEOUT_MS:3000}
+    batch-size: ${APP_DISPATCHER_BATCH_SIZE:50}
   firestore:
     enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
     project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
     emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
     collections:
       webhooks: ${APP_WEBHOOKS_COLLECTION:${WEBHOOKS_COLLECTION:webhooks}}
+      deliveries: ${APP_WEBHOOK_DELIVERIES_COLLECTION:${WEBHOOK_DELIVERIES_COLLECTION:webhook_deliveries}}
 
 management:
   endpoints:

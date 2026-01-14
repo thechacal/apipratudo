@@ -25,12 +25,16 @@ public class DeliveryService {
   private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
 
   private final DeliveryRepository deliveryRepository;
-  private final DeliveryDispatcher deliveryDispatcher;
+  private final WebhookEventPublisher eventPublisher;
   private final Clock clock;
 
-  public DeliveryService(DeliveryRepository deliveryRepository, DeliveryDispatcher deliveryDispatcher, Clock clock) {
+  public DeliveryService(
+      DeliveryRepository deliveryRepository,
+      WebhookEventPublisher eventPublisher,
+      Clock clock
+  ) {
     this.deliveryRepository = deliveryRepository;
-    this.deliveryDispatcher = deliveryDispatcher;
+    this.eventPublisher = eventPublisher;
     this.clock = clock;
   }
 
@@ -57,7 +61,7 @@ public class DeliveryService {
     return toResponse(requireDelivery(id));
   }
 
-  public DeliveryResponse retry(String id) {
+  public DeliveryResponse retry(String apiKey, String id) {
     Delivery existing = requireDelivery(id);
     Delivery retried = new Delivery(
         UUID.randomUUID().toString(),
@@ -72,13 +76,13 @@ public class DeliveryService {
     );
 
     deliveryRepository.save(retried);
-    deliveryDispatcher.dispatch(retried, traceId());
+    eventPublisher.publishDeliveryCreated(apiKey, retried, publicStatus(retried.status()));
     log.info("Delivery retried oldId={} newId={} status={} traceId={}", existing.id(), retried.id(), retried.status(),
         traceId());
     return toResponse(retried);
   }
 
-  public DeliveryTestResponse createTestDelivery(Webhook webhook) {
+  public DeliveryTestResponse createTestDelivery(String apiKey, Webhook webhook) {
     Delivery delivery = new Delivery(
         UUID.randomUUID().toString(),
         webhook.id(),
@@ -92,7 +96,7 @@ public class DeliveryService {
     );
 
     deliveryRepository.save(delivery);
-    deliveryDispatcher.dispatch(delivery, traceId());
+    eventPublisher.publishDeliveryCreated(apiKey, delivery, publicStatus(delivery.status()));
     log.info("Delivery created deliveryId={} webhookId={} status={} traceId={}", delivery.id(), webhook.id(),
         delivery.status(), traceId());
     return new DeliveryTestResponse(delivery.id(), publicStatus(delivery.status()));

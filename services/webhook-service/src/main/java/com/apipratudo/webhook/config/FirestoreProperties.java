@@ -40,6 +40,7 @@ public class FirestoreProperties {
 
   public static class Collections {
     private String webhooks = "webhooks";
+    private String deliveries = "webhook_deliveries";
 
     public String getWebhooks() {
       return webhooks;
@@ -47,6 +48,14 @@ public class FirestoreProperties {
 
     public void setWebhooks(String webhooks) {
       this.webhooks = webhooks;
+    }
+
+    public String getDeliveries() {
+      return deliveries;
+    }
+
+    public void setDeliveries(String deliveries) {
+      this.deliveries = deliveries;
     }
   }
 }

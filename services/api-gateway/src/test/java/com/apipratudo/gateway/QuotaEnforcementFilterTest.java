@@ -76,6 +76,7 @@ class QuotaEnforcementFilterTest {
     }
     registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
     registry.add("webhook.timeout-ms", () -> 2000);
+    registry.add("webhook.service-token", () -> "test-service");
   }
 
   @AfterAll

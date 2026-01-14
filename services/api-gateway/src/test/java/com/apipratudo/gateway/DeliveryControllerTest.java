@@ -67,6 +67,9 @@ class DeliveryControllerTest {
       webhookServer.setDispatcher(new Dispatcher() {
         @Override
         public MockResponse dispatch(RecordedRequest request) {
+          if ("POST".equals(request.getMethod()) && "/internal/events".equals(request.getPath())) {
+            return new MockResponse().setResponseCode(202);
+          }
           if ("POST".equals(request.getMethod()) && "/v1/webhooks".equals(request.getPath())) {
             return new MockResponse()
                 .setResponseCode(201)
@@ -84,6 +87,7 @@ class DeliveryControllerTest {
     }
     registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
     registry.add("webhook.timeout-ms", () -> 2000);
+    registry.add("webhook.service-token", () -> "test-service");
   }
 
   @AfterAll

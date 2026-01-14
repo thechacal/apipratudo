@@ -1,3 +1,5 @@
 app:
   firestore:
     enabled: false
+  security:
+    service-token: dev-service-token

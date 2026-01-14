@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -44,8 +45,11 @@ public class DeliveryController {
   }
 
   @PostMapping("/{id}/retry")
-  public ResponseEntity<DeliveryResponse> retry(@PathVariable String id) {
-    DeliveryResponse response = deliveryService.retry(id);
+  public ResponseEntity<DeliveryResponse> retry(
+      @PathVariable String id,
+      @RequestHeader("X-Api-Key") String apiKey
+  ) {
+    DeliveryResponse response = deliveryService.retry(apiKey, id);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
 }
