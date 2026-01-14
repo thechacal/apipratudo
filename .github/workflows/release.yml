@@ -109,7 +109,7 @@ jobs:
 
       - name: Maven package
         if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
-        run: mvn -B -ntp -DskipTests -f "${{ matrix.service }}/pom.xml" package
+        run: mvn -B -ntp -DskipTests -f "${{ matrix.service }}/pom.xml" clean package
 
       - name: Prepare release asset
         if: steps.match.outputs.match == 'true'
@@ -123,9 +123,9 @@ jobs:
             echo "No bootable JAR found in ${{ matrix.service }}/target"
             exit 1
           fi
-          cp "$JAR" "release-assets/${{ steps.tag.outputs.tag }}.jar"
-          if [ ! -f "release-assets/${{ steps.tag.outputs.tag }}.jar" ]; then
-            echo "Release asset not found: release-assets/${{ steps.tag.outputs.tag }}.jar"
+          cp "$JAR" "release-assets/${{ matrix.name }}-v${{ steps.ver.outputs.version }}.jar"
+          if [ ! -f "release-assets/${{ matrix.name }}-v${{ steps.ver.outputs.version }}.jar" ]; then
+            echo "Release asset not found: release-assets/${{ matrix.name }}-v${{ steps.ver.outputs.version }}.jar"
             exit 1
           fi
 
@@ -136,4 +136,4 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
           files: |
-            release-assets/${{ steps.tag.outputs.tag }}.jar
+            release-assets/${{ matrix.name }}-v${{ steps.ver.outputs.version }}.jar
