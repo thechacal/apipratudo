@@ -1,6 +1,5 @@
 package com.apipratudo.gateway.webhook.client;
 
-import com.apipratudo.gateway.webhook.dto.WebhookCreateRequest;
 import com.apipratudo.gateway.webhook.dto.WebhookCreateResponse;
 import java.time.Duration;
 import java.util.List;
@@ -25,13 +24,15 @@ public class WebhookClient {
   public WebhookClientResult create(
       String apiKey,
       String idempotencyKey,
-      WebhookCreateRequest request,
+      String targetUrl,
+      List<String> events,
+      String secret,
       String traceId
   ) {
     WebhookServiceCreateRequest payload = new WebhookServiceCreateRequest(
-        request.targetUrl(),
-        List.of(request.eventType()),
-        null
+        targetUrl,
+        events,
+        secret
     );
 
     WebClient.RequestBodySpec spec = webClient.post()

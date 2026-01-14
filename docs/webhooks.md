@@ -10,7 +10,7 @@ curl -i -X POST "http://localhost:8080/v1/webhooks" \
   -H "Idempotency-Key: idem-1" \
   -d '{
     "targetUrl":"https://example.com/hook",
-    "eventType":"delivery.created",
+    "events":["delivery.created"],
     "secret":"s3cr3t"
   }'
 ```

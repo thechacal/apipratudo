@@ -125,7 +125,7 @@ class WebhookControllerTest {
   void createWebhookReturnsCreated() throws Exception {
     String body = objectMapper.writeValueAsString(Map.of(
         "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
-        "eventType", "invoice.paid"
+        "events", List.of("invoice.paid")
     ));
 
     mockMvc.perform(post("/v1/webhooks")
@@ -157,10 +157,71 @@ class WebhookControllerTest {
   }
 
   @Test
-  void createWebhookIdempotency() throws Exception {
+  void createWebhookWithEventTypeFallback() throws Exception {
     String body = objectMapper.writeValueAsString(Map.of(
         "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
         "eventType", "invoice.paid"
+    ));
+
+    mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.events[0]").value("invoice.paid"));
+  }
+
+  @Test
+  void createWebhookMissingEventsAndEventType() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo"
+    ));
+
+    mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+  }
+
+  @Test
+  void createWebhookEmptyEventsAndBlankEventType() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
+        "events", List.of(),
+        "eventType", " "
+    ));
+
+    mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+  }
+
+  @Test
+  void createWebhookConflictingEventsAndEventType() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
+        "events", List.of("invoice.paid"),
+        "eventType", "invoice.failed"
+    ));
+
+    mockMvc.perform(post("/v1/webhooks")
+            .header("X-Api-Key", "test-key")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+  }
+
+  @Test
+  void createWebhookIdempotency() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
+        "events", List.of("invoice.paid")
     ));
 
     String key = "idempotency-" + UUID.randomUUID();

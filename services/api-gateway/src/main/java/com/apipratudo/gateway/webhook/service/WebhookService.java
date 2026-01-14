@@ -16,10 +16,12 @@ import com.apipratudo.gateway.webhook.model.WebhookStatus;
 import com.apipratudo.gateway.webhook.repo.WebhookRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 public class WebhookService {
@@ -44,9 +46,17 @@ public class WebhookService {
   }
 
   public WebhookCreateResult create(String apiKey, WebhookCreateRequest request, String idempotencyKey) {
-    WebhookClientResult result = webhookClient.create(apiKey, idempotencyKey, request, traceId());
+    List<String> events = normalizeEvents(request);
+    WebhookClientResult result = webhookClient.create(
+        apiKey,
+        idempotencyKey,
+        request.targetUrl(),
+        events,
+        request.secret(),
+        traceId()
+    );
     WebhookCreateResponse response = result.response();
-    saveLocalCopy(response, request);
+    saveLocalCopy(response, events);
     log.info("Webhook created id={} enabled={} traceId={}", response.id(), response.enabled(), traceId());
     return new WebhookCreateResult(result.statusCode(), response);
   }
@@ -112,10 +122,10 @@ public class WebhookService {
     return response;
   }
 
-  private void saveLocalCopy(WebhookCreateResponse response, WebhookCreateRequest request) {
+  private void saveLocalCopy(WebhookCreateResponse response, List<String> events) {
     Instant createdAt = response.createdAt() != null ? response.createdAt() : Instant.now(clock);
     Instant updatedAt = response.updatedAt() != null ? response.updatedAt() : createdAt;
-    String eventType = request.eventType();
+    String eventType = !events.isEmpty() ? events.get(0) : null;
     if (response.events() != null && !response.events().isEmpty()) {
       eventType = response.events().get(0);
     }
@@ -155,6 +165,39 @@ public class WebhookService {
   }
 
   public record WebhookProxyResult(int statusCode, String body) {
+  }
+
+  private List<String> normalizeEvents(WebhookCreateRequest request) {
+    List<String> events = request.events();
+    String eventType = normalizeText(request.eventType());
+
+    if (events != null && !events.isEmpty()) {
+      List<String> normalized = new ArrayList<>();
+      for (String event : events) {
+        if (!StringUtils.hasText(event)) {
+          throw new BadRequestException("events must not be blank", List.of("events must not be blank"));
+        }
+        normalized.add(event.trim());
+      }
+      if (StringUtils.hasText(eventType) && !normalized.contains(eventType)) {
+        throw new BadRequestException("eventType must match events", List.of("eventType must be included in events"));
+      }
+      return normalized;
+    }
+
+    if (!StringUtils.hasText(eventType)) {
+      throw new BadRequestException("events or eventType is required",
+          List.of("events or eventType is required"));
+    }
+
+    return List.of(eventType);
+  }
+
+  private String normalizeText(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return value.trim();
   }
 
   private String traceId() {
