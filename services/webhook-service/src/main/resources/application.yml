@@ -1,0 +1,28 @@
+server:
+  port: ${PORT:8082}
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+    collections:
+      webhooks: ${APP_WEBHOOKS_COLLECTION:${WEBHOOKS_COLLECTION:webhooks}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true

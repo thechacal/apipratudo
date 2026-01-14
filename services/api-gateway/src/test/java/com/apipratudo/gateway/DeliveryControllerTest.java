@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class DeliveryControllerTest {
 
   private static MockWebServer quotaServer;
+  private static MockWebServer webhookServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -60,12 +61,38 @@ class DeliveryControllerTest {
     registry.add("quota.base-url", () -> quotaServer.url("/").toString());
     registry.add("quota.timeout-ms", () -> 2000);
     registry.add("quota.internal-token", () -> "test-internal");
+
+    if (webhookServer == null) {
+      webhookServer = new MockWebServer();
+      webhookServer.setDispatcher(new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          if ("POST".equals(request.getMethod()) && "/v1/webhooks".equals(request.getPath())) {
+            return new MockResponse()
+                .setResponseCode(201)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"id\":\"wh-test\",\"targetUrl\":\"https://cliente.exemplo.com/webhooks/apipratudo\",\"events\":[\"invoice.paid\"],\"enabled\":true,\"createdAt\":\"2024-01-01T00:00:00Z\",\"updatedAt\":\"2024-01-01T00:00:00Z\"}");
+          }
+          return new MockResponse().setResponseCode(404);
+        }
+      });
+      try {
+        webhookServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start webhook mock server", e);
+      }
+    }
+    registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
+    registry.add("webhook.timeout-ms", () -> 2000);
   }
 
   @AfterAll
   static void shutdownQuotaServer() throws IOException {
     if (quotaServer != null) {
       quotaServer.shutdown();
+    }
+    if (webhookServer != null) {
+      webhookServer.shutdown();
     }
   }
 

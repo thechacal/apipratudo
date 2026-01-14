@@ -38,6 +38,7 @@ class QuotaIdempotencyRulesTest {
 
   private static final int LIMIT = 5;
   private static MockWebServer quotaServer;
+  private static MockWebServer webhookServer;
   private static final AtomicInteger uniqueCounter = new AtomicInteger();
   private static final Set<String> seenRequestIds = ConcurrentHashMap.newKeySet();
 
@@ -60,6 +61,36 @@ class QuotaIdempotencyRulesTest {
     registry.add("quota.base-url", () -> quotaServer.url("/").toString());
     registry.add("quota.timeout-ms", () -> 2000);
     registry.add("quota.internal-token", () -> "test-internal");
+
+    if (webhookServer == null) {
+      webhookServer = new MockWebServer();
+      webhookServer.setDispatcher(new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          if ("GET".equals(request.getMethod()) && request.getPath() != null
+              && request.getPath().startsWith("/v1/webhooks")) {
+            return new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"items\":[],\"nextCursor\":null}");
+          }
+          if ("POST".equals(request.getMethod()) && "/v1/webhooks".equals(request.getPath())) {
+            return new MockResponse()
+                .setResponseCode(201)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"id\":\"wh-test\",\"targetUrl\":\"https://cliente.exemplo.com/webhooks/apipratudo\",\"events\":[\"invoice.paid\"],\"enabled\":true,\"createdAt\":\"2024-01-01T00:00:00Z\",\"updatedAt\":\"2024-01-01T00:00:00Z\"}");
+          }
+          return new MockResponse().setResponseCode(404);
+        }
+      });
+      try {
+        webhookServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start webhook mock server", e);
+      }
+    }
+    registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
+    registry.add("webhook.timeout-ms", () -> 2000);
   }
 
   @BeforeEach
@@ -104,6 +135,9 @@ class QuotaIdempotencyRulesTest {
   static void shutdownQuotaServer() throws IOException {
     if (quotaServer != null) {
       quotaServer.shutdown();
+    }
+    if (webhookServer != null) {
+      webhookServer.shutdown();
     }
   }
 

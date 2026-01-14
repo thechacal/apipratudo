@@ -12,12 +12,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +42,11 @@ import org.springframework.test.web.servlet.MvcResult;
 @ActiveProfiles("test")
 class WebhookControllerTest {
 
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final ConcurrentMap<String, String> IDEMPOTENCY_IDS = new ConcurrentHashMap<>();
+
   private static MockWebServer quotaServer;
+  private static MockWebServer webhookServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -44,7 +55,7 @@ class WebhookControllerTest {
   private ObjectMapper objectMapper;
 
   @DynamicPropertySource
-  static void registerQuotaProperties(DynamicPropertyRegistry registry) {
+  static void registerProperties(DynamicPropertyRegistry registry) {
     if (quotaServer == null) {
       quotaServer = new MockWebServer();
       quotaServer.setDispatcher(new Dispatcher() {
@@ -62,15 +73,50 @@ class WebhookControllerTest {
         throw new IllegalStateException("Failed to start quota mock server", e);
       }
     }
+
+    if (webhookServer == null) {
+      webhookServer = new MockWebServer();
+      webhookServer.setDispatcher(new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          return webhookResponse(request);
+        }
+      });
+      try {
+        webhookServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start webhook mock server", e);
+      }
+    }
+
     registry.add("quota.base-url", () -> quotaServer.url("/").toString());
     registry.add("quota.timeout-ms", () -> 2000);
     registry.add("quota.internal-token", () -> "test-internal");
+    registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
+    registry.add("webhook.timeout-ms", () -> 2000);
   }
 
   @AfterAll
-  static void shutdownQuotaServer() throws IOException {
+  static void shutdownServers() throws IOException {
     if (quotaServer != null) {
       quotaServer.shutdown();
+    }
+    if (webhookServer != null) {
+      webhookServer.shutdown();
+    }
+  }
+
+  @AfterEach
+  void drainRequests() throws InterruptedException {
+    if (quotaServer != null) {
+      while (quotaServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+        // drain quota requests between tests
+      }
+    }
+    if (webhookServer != null) {
+      while (webhookServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+        // drain webhook requests between tests
+      }
     }
   }
 
@@ -88,7 +134,10 @@ class WebhookControllerTest {
         .andExpect(status().isCreated())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(jsonPath("$.id").isNotEmpty())
-        .andExpect(jsonPath("$.status").value("ACTIVE"));
+        .andExpect(jsonPath("$.targetUrl").value("https://cliente.exemplo.com/webhooks/apipratudo"))
+        .andExpect(jsonPath("$.events[0]").value("invoice.paid"))
+        .andExpect(jsonPath("$.enabled").value(true))
+        .andExpect(jsonPath("$.createdAt").isNotEmpty());
   }
 
   @Test
@@ -135,38 +184,61 @@ class WebhookControllerTest {
     JsonNode secondJson = objectMapper.readTree(second.getResponse().getContentAsString());
 
     assertThat(firstJson.get("id").asText()).isEqualTo(secondJson.get("id").asText());
-    assertThat(firstJson.get("status").asText()).isEqualTo("ACTIVE");
+    assertThat(firstJson.get("events").get(0).asText()).isEqualTo("invoice.paid");
   }
 
   @Test
-  void createWebhookIdempotencyConflict() throws Exception {
-    String baseBody = objectMapper.writeValueAsString(Map.of(
+  void createWebhookIdempotencyUsesRemote() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
         "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
         "eventType", "invoice.paid"
     ));
 
-    String changedBody = objectMapper.writeValueAsString(Map.of(
-        "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
-        "eventType", "invoice.failed"
-    ));
-
-    String key = "conflict-" + UUID.randomUUID();
+    String key = "remote-" + UUID.randomUUID();
 
     mockMvc.perform(post("/v1/webhooks")
             .header("Idempotency-Key", key)
             .header("X-Api-Key", "test-key")
             .contentType(MediaType.APPLICATION_JSON)
-            .content(baseBody))
+            .content(body))
         .andExpect(status().isCreated());
 
-    mockMvc.perform(post("/v1/webhooks")
-            .header("Idempotency-Key", key)
+    RecordedRequest forwarded = webhookServer.takeRequest(2, TimeUnit.SECONDS);
+    assertThat(forwarded).isNotNull();
+    assertThat(forwarded.getPath()).isEqualTo("/v1/webhooks");
+    assertThat(forwarded.getHeader("X-Api-Key")).isEqualTo("test-key");
+    assertThat(forwarded.getHeader("Idempotency-Key")).isEqualTo(key);
+
+    JsonNode forwardedBody = objectMapper.readTree(forwarded.getBody().readUtf8());
+    assertThat(forwardedBody.get("targetUrl").asText())
+        .isEqualTo("https://cliente.exemplo.com/webhooks/apipratudo");
+    assertThat(forwardedBody.get("events").get(0).asText()).isEqualTo("invoice.paid");
+  }
+
+  @Test
+  void listWebhooksForwardsQueryParams() throws Exception {
+    mockMvc.perform(get("/v1/webhooks")
             .header("X-Api-Key", "test-key")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(changedBody))
-        .andExpect(status().isConflict())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.error").value("CONFLICT"));
+            .queryParam("limit", "10")
+            .queryParam("cursor", "abc123"))
+        .andExpect(status().isOk());
+
+    RecordedRequest forwarded = webhookServer.takeRequest(2, TimeUnit.SECONDS);
+    assertThat(forwarded).isNotNull();
+    assertThat(forwarded.getPath()).isEqualTo("/v1/webhooks?limit=10&cursor=abc123");
+    assertThat(forwarded.getHeader("X-Api-Key")).isEqualTo("test-key");
+  }
+
+  @Test
+  void getWebhookForwardsPath() throws Exception {
+    mockMvc.perform(get("/v1/webhooks/{id}", "wh-123")
+            .header("X-Api-Key", "test-key"))
+        .andExpect(status().isOk());
+
+    RecordedRequest forwarded = webhookServer.takeRequest(2, TimeUnit.SECONDS);
+    assertThat(forwarded).isNotNull();
+    assertThat(forwarded.getPath()).isEqualTo("/v1/webhooks/wh-123");
+    assertThat(forwarded.getHeader("X-Api-Key")).isEqualTo("test-key");
   }
 
   @Test
@@ -254,5 +326,76 @@ class WebhookControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.deliveryId").isNotEmpty())
         .andExpect(jsonPath("$.status").value("PENDING"));
+  }
+
+  private static MockResponse webhookResponse(RecordedRequest request) {
+    try {
+      if ("GET".equals(request.getMethod())) {
+        String path = request.getPath();
+        if (path != null && (path.equals("/v1/webhooks") || path.startsWith("/v1/webhooks?"))) {
+          Map<String, Object> payload = new java.util.HashMap<>();
+          payload.put("items", List.of());
+          payload.put("nextCursor", null);
+          String responseBody = MAPPER.writeValueAsString(payload);
+          return new MockResponse()
+              .setResponseCode(200)
+              .setHeader("Content-Type", "application/json")
+              .setBody(responseBody);
+        }
+        if (path != null && path.startsWith("/v1/webhooks/")) {
+          String id = path.substring("/v1/webhooks/".length());
+          if (id.equals("nao-existe")) {
+            return new MockResponse()
+                .setResponseCode(404)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"error\":\"NOT_FOUND\",\"message\":\"Webhook not found\"}");
+          }
+          Instant now = Instant.now();
+          String responseBody = MAPPER.writeValueAsString(Map.of(
+              "id", id,
+              "targetUrl", "https://cliente.exemplo.com/webhooks/apipratudo",
+              "events", List.of("invoice.paid"),
+              "enabled", true,
+              "createdAt", now.toString(),
+              "updatedAt", now.toString()
+          ));
+          return new MockResponse()
+              .setResponseCode(200)
+              .setHeader("Content-Type", "application/json")
+              .setBody(responseBody);
+        }
+      }
+
+      String idempotencyKey = request.getHeader("Idempotency-Key");
+      String id = idempotencyKey == null
+          ? UUID.randomUUID().toString()
+          : IDEMPOTENCY_IDS.computeIfAbsent(idempotencyKey, key -> UUID.randomUUID().toString());
+
+      String rawBody = request.getBody().clone().readUtf8();
+      JsonNode body = MAPPER.readTree(rawBody);
+      String targetUrl = body.get("targetUrl").asText();
+      List<String> events = new ArrayList<>();
+      JsonNode eventsNode = body.get("events");
+      if (eventsNode != null && eventsNode.isArray()) {
+        eventsNode.forEach(node -> events.add(node.asText()));
+      }
+
+      Instant now = Instant.now();
+      String responseBody = MAPPER.writeValueAsString(Map.of(
+          "id", id,
+          "targetUrl", targetUrl,
+          "events", events,
+          "enabled", true,
+          "createdAt", now.toString(),
+          "updatedAt", now.toString()
+      ));
+
+      return new MockResponse()
+          .setResponseCode(201)
+          .setHeader("Content-Type", "application/json")
+          .setBody(responseBody);
+    } catch (Exception e) {
+      return new MockResponse().setResponseCode(500);
+    }
   }
 }

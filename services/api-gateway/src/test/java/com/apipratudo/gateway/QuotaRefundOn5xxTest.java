@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.apipratudo.gateway.webhook.service.WebhookService;
+import com.apipratudo.gateway.webhook.dto.WebhookCreateRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -69,7 +70,7 @@ class QuotaRefundOn5xxTest {
 
   @BeforeEach
   void stubWebhookService() {
-    when(webhookService.create(any(), anyString()))
+    when(webhookService.create(anyString(), any(WebhookCreateRequest.class), anyString()))
         .thenThrow(new RuntimeException("boom"));
   }
 

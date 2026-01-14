@@ -3,15 +3,14 @@ package com.apipratudo.gateway.webhook.controller;
 import com.apipratudo.gateway.webhook.dto.DeliveryTestResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookCreateRequest;
 import com.apipratudo.gateway.webhook.dto.WebhookCreateResponse;
-import com.apipratudo.gateway.webhook.dto.WebhookListResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookResponse;
 import com.apipratudo.gateway.webhook.dto.WebhookUpdateRequest;
 import com.apipratudo.gateway.webhook.service.WebhookService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -40,24 +39,35 @@ public class WebhookController {
 
   @PostMapping
   public ResponseEntity<WebhookCreateResponse> create(
+      @RequestHeader("X-Api-Key") String apiKey,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @Valid @RequestBody WebhookCreateRequest request
   ) {
-    WebhookService.WebhookCreateResult result = webhookService.create(request, idempotencyKey);
+    WebhookService.WebhookCreateResult result = webhookService.create(apiKey, request, idempotencyKey);
     return ResponseEntity.status(result.statusCode()).body(result.response());
   }
 
   @GetMapping
-  public WebhookListResponse list(
-      @RequestParam(defaultValue = "1") @Min(1) int page,
-      @RequestParam(defaultValue = "20") @Min(1) int size
+  public ResponseEntity<String> list(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @RequestParam(required = false) String limit,
+      @RequestParam(required = false) String cursor
   ) {
-    return webhookService.list(page, size);
+    WebhookService.WebhookProxyResult result = webhookService.list(apiKey, limit, cursor);
+    return ResponseEntity.status(result.statusCode())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(result.body());
   }
 
   @GetMapping("/{id}")
-  public WebhookResponse get(@PathVariable String id) {
-    return webhookService.get(id);
+  public ResponseEntity<String> get(
+      @PathVariable String id,
+      @RequestHeader("X-Api-Key") String apiKey
+  ) {
+    WebhookService.WebhookProxyResult result = webhookService.get(apiKey, id);
+    return ResponseEntity.status(result.statusCode())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(result.body());
   }
 
   @PatchMapping("/{id}")

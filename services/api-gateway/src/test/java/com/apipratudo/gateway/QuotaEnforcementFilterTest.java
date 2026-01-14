@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class QuotaEnforcementFilterTest {
 
   private static MockWebServer quotaServer;
+  private static MockWebServer webhookServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -52,12 +53,38 @@ class QuotaEnforcementFilterTest {
     registry.add("quota.base-url", () -> quotaServer.url("/").toString());
     registry.add("quota.timeout-ms", () -> 2000);
     registry.add("quota.internal-token", () -> "test-internal");
+
+    if (webhookServer == null) {
+      webhookServer = new MockWebServer();
+      webhookServer.setDispatcher(new okhttp3.mockwebserver.Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+          if ("POST".equals(request.getMethod()) && "/v1/webhooks".equals(request.getPath())) {
+            return new MockResponse()
+                .setResponseCode(201)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"id\":\"wh-test\",\"targetUrl\":\"https://cliente.exemplo.com/webhooks/apipratudo\",\"events\":[\"invoice.paid\"],\"enabled\":true,\"createdAt\":\"2024-01-01T00:00:00Z\",\"updatedAt\":\"2024-01-01T00:00:00Z\"}");
+          }
+          return new MockResponse().setResponseCode(404);
+        }
+      });
+      try {
+        webhookServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start webhook mock server", e);
+      }
+    }
+    registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
+    registry.add("webhook.timeout-ms", () -> 2000);
   }
 
   @AfterAll
   static void shutdownQuotaServer() throws IOException {
     if (quotaServer != null) {
       quotaServer.shutdown();
+    }
+    if (webhookServer != null) {
+      webhookServer.shutdown();
     }
   }
 
@@ -68,6 +95,12 @@ class QuotaEnforcementFilterTest {
     }
     while (quotaServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
       // drain any leftover requests to keep tests isolated
+    }
+    if (webhookServer == null) {
+      return;
+    }
+    while (webhookServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+      // drain webhook requests to keep tests isolated
     }
   }
 

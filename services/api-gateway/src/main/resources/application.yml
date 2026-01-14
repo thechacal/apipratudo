@@ -12,6 +12,10 @@ quota:
   timeout-ms: ${QUOTA_TIMEOUT_MS:3000}
   internal-token: ${QUOTA_INTERNAL_TOKEN:}
 
+webhook:
+  base-url: ${WEBHOOK_BASE_URL:http://localhost:8082}
+  timeout-ms: ${WEBHOOK_TIMEOUT_MS:3000}
+
 app:
   firestore:
     enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}

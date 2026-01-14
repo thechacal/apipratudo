@@ -4,3 +4,5 @@ app:
 quota:
   base-url: http://localhost:8081
   internal-token: dev-internal
+webhook:
+  base-url: http://localhost:8082

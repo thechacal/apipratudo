@@ -1,9 +1,9 @@
-package com.apipratudo.gateway.webhook.dto;
+package com.apipratudo.webhook.dto;
 
 import java.time.Instant;
 import java.util.List;
 
-public record WebhookCreateResponse(
+public record WebhookResponse(
     String id,
     String targetUrl,
     List<String> events,
