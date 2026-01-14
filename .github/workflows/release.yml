@@ -6,6 +6,7 @@ on:
       - "api-gateway-v*"
       - "quota-service-v*"
       - "webhook-service-v*"
+      - "federal-results-service-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -32,6 +33,9 @@ jobs:
           - name: webhook-service
             service: services/webhook-service
             tag_prefix: webhook-service-v
+          - name: federal-results-service
+            service: services/federal-results-service
+            tag_prefix: federal-results-service-v
 
     steps:
       - name: Checkout
