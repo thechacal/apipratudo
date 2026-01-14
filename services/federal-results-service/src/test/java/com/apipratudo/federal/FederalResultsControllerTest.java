@@ -39,11 +39,11 @@ class FederalResultsControllerTest {
         "5970",
         "2026-01-10",
         List.of(
-            new PremioDTO(1, "12345", null),
-            new PremioDTO(2, "54321", null),
-            new PremioDTO(3, "11111", null),
-            new PremioDTO(4, "22222", null),
-            new PremioDTO(5, "33333", null)
+            new PremioDTO("1º", "12345", "LOTERICA A", "SAO PAULO/SP", "R$ 500.000,00"),
+            new PremioDTO("2º", "54321", "LOTERICA B", "RIO DE JANEIRO/RJ", "R$ 50.000,00"),
+            new PremioDTO("3º", "11111", "LOTERICA C", "BELO HORIZONTE/MG", "R$ 10.000,00"),
+            new PremioDTO("4º", "22222", "LOTERICA D", "CURITIBA/PR", "R$ 5.000,00"),
+            new PremioDTO("5º", "33333", "LOTERICA E", "PORTO ALEGRE/RS", "R$ 2.000,00")
         ),
         Instant.parse("2026-01-14T20:30:00Z")
     );
@@ -56,8 +56,12 @@ class FederalResultsControllerTest {
         .andExpect(jsonPath("$.loteria").value("FEDERAL"))
         .andExpect(jsonPath("$.concurso").value("5970"))
         .andExpect(jsonPath("$.dataApuracao").value("2026-01-10"))
-        .andExpect(jsonPath("$.premios[0].posicao").value(1))
+        .andExpect(jsonPath("$.premios.length()").value(5))
+        .andExpect(jsonPath("$.premios[0].destino").value("1º"))
         .andExpect(jsonPath("$.premios[0].bilhete").value("12345"))
+        .andExpect(jsonPath("$.premios[0].unidadeLoterica").value("LOTERICA A"))
+        .andExpect(jsonPath("$.premios[0].cidadeUf").value("SAO PAULO/SP"))
+        .andExpect(jsonPath("$.premios[0].valorPremio").value("R$ 500.000,00"))
         .andExpect(jsonPath("$.capturadoEm").value("2026-01-14T20:30:00Z"));
   }
 

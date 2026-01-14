@@ -1,8 +1,10 @@
 package com.apipratudo.federal.dto;
 
 public record PremioDTO(
-    int posicao,
+    String destino,
     String bilhete,
-    String valor
+    String unidadeLoterica,
+    String cidadeUf,
+    String valorPremio
 ) {
 }

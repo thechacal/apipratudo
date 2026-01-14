@@ -120,16 +120,20 @@ public class CaixaFederalScraper {
 
   private List<PremioDTO> extractPremios(List<ElementHandle> rows) {
     List<PremioDTO> premios = new ArrayList<>();
-    int posicao = 1;
     for (ElementHandle row : rows) {
       List<ElementHandle> cols = row.querySelectorAll("td");
-      if (cols.size() < 2) {
+      if (cols.size() < 5) {
         continue;
       }
-      String bilhete = safeText(cols.get(1));
-      premios.add(new PremioDTO(posicao, bilhete, null));
-      posicao++;
-      if (posicao > 5) {
+      PremioDTO premio = new PremioDTO(
+          safeText(cols.get(0)),
+          safeText(cols.get(1)),
+          safeText(cols.get(2)),
+          safeText(cols.get(3)),
+          safeText(cols.get(4))
+      );
+      premios.add(premio);
+      if (premios.size() >= 5) {
         break;
       }
     }
