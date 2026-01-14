@@ -5,6 +5,7 @@ on:
     tags:
       - "api-gateway-v*"
       - "quota-service-v*"
+      - "webhook-service-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -28,6 +29,9 @@ jobs:
           - name: quota-service
             service: services/quota-service
             tag_prefix: quota-service-v
+          - name: webhook-service
+            service: services/webhook-service
+            tag_prefix: webhook-service-v
 
     steps:
       - name: Checkout
@@ -67,8 +71,7 @@ jobs:
 
       - name: Maven package
         if: steps.match.outputs.match == 'true' && hashFiles(format('{0}/pom.xml', matrix.service)) != ''
-        working-directory: ${{ matrix.service }}
-        run: mvn -B -ntp -DskipTests package
+        run: mvn -B -ntp -DskipTests -f "${{ matrix.service }}/pom.xml" package
 
       - name: Locate JAR
         if: steps.match.outputs.match == 'true'
