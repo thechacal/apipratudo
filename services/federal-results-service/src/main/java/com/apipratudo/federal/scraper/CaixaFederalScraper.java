@@ -8,6 +8,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
 import com.microsoft.playwright.ElementHandle;
+import com.microsoft.playwright.Frame;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
@@ -63,18 +64,24 @@ public class CaixaFederalScraper {
 
           List<ElementHandle> rows = findRows(page);
           if (rows.isEmpty()) {
+            rows = findRowsInFrames(page.frames());
+          }
+          if (rows.isEmpty()) {
             throw new UpstreamBadResponseException("Elemento de resultado nao encontrado",
                 List.of("Elemento de resultado nao encontrado"));
           }
 
-          String titulo = "";
-          try {
-            titulo = page.locator("h2").first().innerText().trim();
-          } catch (Exception ignored) {
-            titulo = "";
-          }
-
+          String titulo = extractHeaderText(page);
           Matcher matcher = HEADER_RX.matcher(titulo);
+          if (!matcher.find()) {
+            for (Frame frame : page.frames()) {
+              titulo = extractHeaderText(frame);
+              matcher = HEADER_RX.matcher(titulo);
+              if (matcher.find()) {
+                break;
+              }
+            }
+          }
           if (!matcher.find()) {
             throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
                 List.of("Cabecalho do concurso nao encontrado"));
@@ -116,6 +123,48 @@ public class CaixaFederalScraper {
       }
     }
     return List.of();
+  }
+
+  private List<ElementHandle> findRows(Frame frame) {
+    for (String selector : ROW_SELECTORS) {
+      try {
+        frame.waitForSelector(selector, new Frame.WaitForSelectorOptions()
+            .setTimeout((double) config.getTimeoutMs()));
+        List<ElementHandle> rows = frame.querySelectorAll(selector);
+        if (rows.size() >= 5) {
+          return rows;
+        }
+      } catch (Exception ignored) {
+        // try next selector
+      }
+    }
+    return List.of();
+  }
+
+  private List<ElementHandle> findRowsInFrames(List<Frame> frames) {
+    for (Frame frame : frames) {
+      List<ElementHandle> rows = findRows(frame);
+      if (!rows.isEmpty()) {
+        return rows;
+      }
+    }
+    return List.of();
+  }
+
+  private String extractHeaderText(Page page) {
+    try {
+      return page.locator("h2").first().innerText().trim();
+    } catch (Exception ignored) {
+      return "";
+    }
+  }
+
+  private String extractHeaderText(Frame frame) {
+    try {
+      return frame.locator("h2").first().innerText().trim();
+    } catch (Exception ignored) {
+      return "";
+    }
   }
 
   private List<PremioDTO> extractPremios(List<ElementHandle> rows) {
