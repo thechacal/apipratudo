@@ -19,6 +19,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -33,8 +34,10 @@ public class CaixaTimemaniaScraper {
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Timemania.aspx";
   private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/timemania";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
-      Pattern.CASE_INSENSITIVE);
+  private static final Pattern HEADER_RX = Pattern.compile(
+      "Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
+      Pattern.CASE_INSENSITIVE
+  );
   private static final Pattern DEZENA_RX = Pattern.compile("\\b(0?[1-9]|[1-7]\\d|80)\\b");
   private static final Pattern TIME_CORACAO_RX = Pattern.compile(
       "Time do cora(?:\\u00e7\\u00e3|ca)o\\s*:?\\s*([\\p{L}\\d .'-]+)",
@@ -113,6 +116,7 @@ public class CaixaTimemaniaScraper {
               throw new UpstreamBadResponseException("Dezenas incompletas",
                   List.of("Elemento de resultado nao encontrado"));
             }
+
             String timeCoracao = findTimeCoracao(page);
             if (timeCoracao == null || timeCoracao.isBlank()) {
               throw new UpstreamBadResponseException("Time do coracao nao encontrado",
@@ -241,22 +245,32 @@ public class CaixaTimemaniaScraper {
 
   private ScrapedTimemaniaResult fetchFromApi() {
     HttpClient client = HttpClient.newBuilder()
-        .connectTimeout(java.time.Duration.ofSeconds(5))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .connectTimeout(Duration.ofSeconds(5))
         .build();
+
     try {
       HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
-          .timeout(java.time.Duration.ofSeconds(10))
+          .timeout(Duration.ofSeconds(10))
+          .header("User-Agent", "Mozilla/5.0")
+          .header("Accept", "application/json, text/plain, */*")
+          .header("Referer", "https://loterias.caixa.gov.br/")
           .GET()
           .build();
+
       HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
       if (response.statusCode() != 200) {
+        System.out.println("Timemania fallback API status=" + response.statusCode());
         return null;
       }
+
       JsonNode root = MAPPER.readTree(response.body());
       String concurso = textOrNull(root, "numero");
       String dataApuracao = textOrNull(root, "dataApuracao");
       List<String> dezenas = normalizeDezenas(readStringList(root.get("listaDezenas")));
       String timeCoracao = normalizeTimeCoracao(textOrNull(root, "nomeTimeCoracaoMesSorte"));
+
       if (concurso == null || dataApuracao == null || dezenas.size() != 7 || timeCoracao == null) {
         return null;
       }
