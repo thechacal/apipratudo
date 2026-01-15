@@ -9,6 +9,14 @@ on:
       - "federal-results-service-v*"
       - "lotofacil-results-service-v*"
       - "megasena-results-service-v*"
+      - "quina-results-service-v*"
+      - "lotomania-results-service-v*"
+      - "timemania-results-service-v*"
+      - "duplasena-results-service-v*"
+      - "loteca-results-service-v*"
+      - "diadesorte-results-service-v*"
+      - "supersete-results-service-v*"
+      - "maismilionaria-results-service-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -44,6 +52,30 @@ jobs:
           - name: megasena-results-service
             service: services/megasena-results-service
             tag_prefix: megasena-results-service-v
+          - name: quina-results-service
+            service: services/quina-results-service
+            tag_prefix: quina-results-service-v
+          - name: lotomania-results-service
+            service: services/lotomania-results-service
+            tag_prefix: lotomania-results-service-v
+          - name: timemania-results-service
+            service: services/timemania-results-service
+            tag_prefix: timemania-results-service-v
+          - name: duplasena-results-service
+            service: services/duplasena-results-service
+            tag_prefix: duplasena-results-service-v
+          - name: loteca-results-service
+            service: services/loteca-results-service
+            tag_prefix: loteca-results-service-v
+          - name: diadesorte-results-service
+            service: services/diadesorte-results-service
+            tag_prefix: diadesorte-results-service-v
+          - name: supersete-results-service
+            service: services/supersete-results-service
+            tag_prefix: supersete-results-service-v
+          - name: maismilionaria-results-service
+            service: services/maismilionaria-results-service
+            tag_prefix: maismilionaria-results-service-v
 
     steps:
       - name: Checkout
