@@ -11,3 +11,5 @@ federal:
   base-url: http://localhost:8083
 lotofacil:
   base-url: http://localhost:8084
+megasena:
+  base-url: http://localhost:8085
