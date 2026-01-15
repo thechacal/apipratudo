@@ -7,6 +7,7 @@ on:
       - "quota-service-v*"
       - "webhook-service-v*"
       - "federal-results-service-v*"
+      - "lotofacil-results-service-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -36,6 +37,9 @@ jobs:
           - name: federal-results-service
             service: services/federal-results-service
             tag_prefix: federal-results-service-v
+          - name: lotofacil-results-service
+            service: services/lotofacil-results-service
+            tag_prefix: lotofacil-results-service-v
 
     steps:
       - name: Checkout
