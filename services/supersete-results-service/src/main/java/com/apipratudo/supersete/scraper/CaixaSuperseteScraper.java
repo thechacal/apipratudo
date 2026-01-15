@@ -3,10 +3,15 @@ package com.apipratudo.supersete.scraper;
 import com.apipratudo.supersete.config.PlaywrightConfig;
 import com.apipratudo.supersete.error.UpstreamBadResponseException;
 import com.apipratudo.supersete.error.UpstreamTimeoutException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.playwright.APIRequestContext;
+import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
 import com.microsoft.playwright.ElementHandle;
+import com.microsoft.playwright.Frame;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
@@ -22,6 +27,8 @@ import org.springframework.stereotype.Component;
 public class CaixaSuperseteScraper {
 
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Super-Sete.aspx";
+  private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/supersete";
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
       Pattern.CASE_INSENSITIVE);
   private static final Pattern DIGIT_RX = Pattern.compile("\\b\\d\\b");
@@ -77,28 +84,36 @@ public class CaixaSuperseteScraper {
 
           waitForReady(page);
 
-          String header = findHeader(page);
-          if (header == null || header.isBlank()) {
-            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                List.of("Cabecalho do concurso nao encontrado"));
+          try {
+            String header = findHeader(page);
+            if (header == null || header.isBlank()) {
+              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                  List.of("Cabecalho do concurso nao encontrado"));
+            }
+
+            Matcher matcher = HEADER_RX.matcher(header);
+            if (!matcher.find()) {
+              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                  List.of("Cabecalho do concurso nao encontrado"));
+            }
+
+            String concurso = matcher.group(1);
+            String dataApuracao = matcher.group(2);
+
+            List<String> colunas = findColunas(page);
+            if (colunas.size() != 7) {
+              throw new UpstreamBadResponseException("Colunas incompletas",
+                  List.of("Elemento de resultado nao encontrado"));
+            }
+
+            return new ScrapedSuperseteResult(concurso, dataApuracao, colunas);
+          } catch (UpstreamBadResponseException ex) {
+            ScrapedSuperseteResult fallback = fetchFromApi(playwright);
+            if (fallback != null) {
+              return fallback;
+            }
+            throw ex;
           }
-
-          Matcher matcher = HEADER_RX.matcher(header);
-          if (!matcher.find()) {
-            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                List.of("Cabecalho do concurso nao encontrado"));
-          }
-
-          String concurso = matcher.group(1);
-          String dataApuracao = matcher.group(2);
-
-          List<String> colunas = findColunas(page);
-          if (colunas.size() != 7) {
-            throw new UpstreamBadResponseException("Colunas incompletas",
-                List.of("Elemento de resultado nao encontrado"));
-          }
-
-          return new ScrapedSuperseteResult(concurso, dataApuracao, colunas);
         }
       }
     } catch (TimeoutError ex) {
@@ -112,13 +127,15 @@ public class CaixaSuperseteScraper {
   }
 
   private void waitForReady(Page page) {
-    for (String selector : READY_HINTS) {
-      try {
-        page.waitForSelector(selector, new Page.WaitForSelectorOptions()
-            .setTimeout((double) config.getTimeoutMs()));
-        return;
-      } catch (Exception ignored) {
-        // try next
+    for (Frame frame : frames(page)) {
+      for (String selector : READY_HINTS) {
+        try {
+          frame.waitForSelector(selector, new Frame.WaitForSelectorOptions()
+              .setTimeout((double) config.getTimeoutMs()));
+          return;
+        } catch (Exception ignored) {
+          // try next
+        }
       }
     }
     throw new UpstreamBadResponseException("Elemento de resultado nao encontrado",
@@ -126,25 +143,36 @@ public class CaixaSuperseteScraper {
   }
 
   private String findHeader(Page page) {
-    for (String selector : HEADER_SELECTORS) {
-      try {
-        String text = page.locator(selector).first().innerText();
-        if (text != null && !text.isBlank()) {
-          return text.trim();
+    for (Frame frame : frames(page)) {
+      for (String selector : HEADER_SELECTORS) {
+        try {
+          String text = frame.locator(selector).first().innerText();
+          if (text != null && !text.isBlank()) {
+            return text.trim();
+          }
+        } catch (Exception ignored) {
+          // try next
         }
-      } catch (Exception ignored) {
-        // try next
+      }
+      String body = safeInnerText(frame, "body");
+      if (body != null && !body.isBlank()) {
+        Matcher matcher = HEADER_RX.matcher(body);
+        if (matcher.find()) {
+          return matcher.group(0);
+        }
       }
     }
     return null;
   }
 
   private List<String> findColunas(Page page) {
-    for (String selector : COLUNAS_SELECTORS) {
-      List<ElementHandle> elements = page.querySelectorAll(selector);
-      List<String> colunas = parseColunas(elements);
-      if (colunas.size() == 7) {
-        return colunas;
+    for (Frame frame : frames(page)) {
+      for (String selector : COLUNAS_SELECTORS) {
+        List<ElementHandle> elements = frame.querySelectorAll(selector);
+        List<String> colunas = parseColunas(elements);
+        if (colunas.size() == 7) {
+          return colunas;
+        }
       }
     }
     return List.of();
@@ -168,6 +196,58 @@ public class CaixaSuperseteScraper {
     return valores;
   }
 
+  private ScrapedSuperseteResult fetchFromApi(Playwright playwright) {
+    APIRequestContext request = playwright.request().newContext();
+    try {
+      APIResponse response = request.get(API_URL);
+      if (!response.ok()) {
+        return null;
+      }
+      String body = response.text();
+      JsonNode root = MAPPER.readTree(body);
+      String concurso = textOrNull(root, "numero");
+      String dataApuracao = textOrNull(root, "dataApuracao");
+      List<String> colunas = normalizeColunas(readStringList(root.get("listaDezenas")));
+      if (concurso == null || dataApuracao == null || colunas.size() != 7) {
+        return null;
+      }
+      return new ScrapedSuperseteResult(concurso, dataApuracao, colunas);
+    } catch (Exception ex) {
+      return null;
+    } finally {
+      request.dispose();
+    }
+  }
+
+  private List<String> readStringList(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    List<String> values = new ArrayList<>();
+    for (JsonNode item : node) {
+      String text = item.asText();
+      if (text != null && !text.isBlank()) {
+        values.add(text.trim());
+      }
+    }
+    return values;
+  }
+
+  private List<String> normalizeColunas(List<String> raw) {
+    if (raw.size() != 7) {
+      return List.of();
+    }
+    List<String> colunas = new ArrayList<>(7);
+    for (String item : raw) {
+      String value = item == null ? "" : item.trim();
+      if (value.length() != 1 || !Character.isDigit(value.charAt(0))) {
+        return List.of();
+      }
+      colunas.add(value);
+    }
+    return colunas;
+  }
+
   private String safeText(ElementHandle handle) {
     if (handle == null) {
       return "";
@@ -177,5 +257,35 @@ public class CaixaSuperseteScraper {
     } catch (Exception ex) {
       return "";
     }
+  }
+
+  private String textOrNull(JsonNode node, String field) {
+    if (node == null) {
+      return null;
+    }
+    JsonNode value = node.get(field);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    String text = value.asText();
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    return text.trim();
+  }
+
+  private String safeInnerText(Frame frame, String selector) {
+    if (frame == null) {
+      return null;
+    }
+    try {
+      return frame.innerText(selector);
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private List<Frame> frames(Page page) {
+    return page.frames();
   }
 }

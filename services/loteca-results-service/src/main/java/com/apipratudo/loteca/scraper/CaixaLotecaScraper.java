@@ -4,10 +4,15 @@ import com.apipratudo.loteca.config.PlaywrightConfig;
 import com.apipratudo.loteca.dto.LotecaJogoDTO;
 import com.apipratudo.loteca.error.UpstreamBadResponseException;
 import com.apipratudo.loteca.error.UpstreamTimeoutException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.playwright.APIRequestContext;
+import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
 import com.microsoft.playwright.ElementHandle;
+import com.microsoft.playwright.Frame;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
@@ -23,6 +28,8 @@ import org.springframework.stereotype.Component;
 public class CaixaLotecaScraper {
 
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Loteca.aspx";
+  private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/loteca";
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
       Pattern.CASE_INSENSITIVE);
   private static final List<String> HEADER_SELECTORS = List.of(
@@ -74,28 +81,36 @@ public class CaixaLotecaScraper {
 
           waitForReady(page);
 
-          String header = findHeader(page);
-          if (header == null || header.isBlank()) {
-            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                List.of("Cabecalho do concurso nao encontrado"));
+          try {
+            String header = findHeader(page);
+            if (header == null || header.isBlank()) {
+              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                  List.of("Cabecalho do concurso nao encontrado"));
+            }
+
+            Matcher matcher = HEADER_RX.matcher(header);
+            if (!matcher.find()) {
+              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                  List.of("Cabecalho do concurso nao encontrado"));
+            }
+
+            String concurso = matcher.group(1);
+            String dataApuracao = matcher.group(2);
+
+            List<LotecaJogoDTO> jogos = findJogos(page);
+            if (jogos.isEmpty()) {
+              throw new UpstreamBadResponseException("Jogos incompletos",
+                  List.of("Elemento de resultado nao encontrado"));
+            }
+
+            return new ScrapedLotecaResult(concurso, dataApuracao, jogos);
+          } catch (UpstreamBadResponseException ex) {
+            ScrapedLotecaResult fallback = fetchFromApi(playwright);
+            if (fallback != null) {
+              return fallback;
+            }
+            throw ex;
           }
-
-          Matcher matcher = HEADER_RX.matcher(header);
-          if (!matcher.find()) {
-            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                List.of("Cabecalho do concurso nao encontrado"));
-          }
-
-          String concurso = matcher.group(1);
-          String dataApuracao = matcher.group(2);
-
-          List<LotecaJogoDTO> jogos = findJogos(page);
-          if (jogos.isEmpty()) {
-            throw new UpstreamBadResponseException("Jogos incompletos",
-                List.of("Elemento de resultado nao encontrado"));
-          }
-
-          return new ScrapedLotecaResult(concurso, dataApuracao, jogos);
         }
       }
     } catch (TimeoutError ex) {
@@ -109,13 +124,15 @@ public class CaixaLotecaScraper {
   }
 
   private void waitForReady(Page page) {
-    for (String selector : READY_HINTS) {
-      try {
-        page.waitForSelector(selector, new Page.WaitForSelectorOptions()
-            .setTimeout((double) config.getTimeoutMs()));
-        return;
-      } catch (Exception ignored) {
-        // try next
+    for (Frame frame : frames(page)) {
+      for (String selector : READY_HINTS) {
+        try {
+          frame.waitForSelector(selector, new Frame.WaitForSelectorOptions()
+              .setTimeout((double) config.getTimeoutMs()));
+          return;
+        } catch (Exception ignored) {
+          // try next
+        }
       }
     }
     throw new UpstreamBadResponseException("Elemento de resultado nao encontrado",
@@ -123,25 +140,36 @@ public class CaixaLotecaScraper {
   }
 
   private String findHeader(Page page) {
-    for (String selector : HEADER_SELECTORS) {
-      try {
-        String text = page.locator(selector).first().innerText();
-        if (text != null && !text.isBlank()) {
-          return text.trim();
+    for (Frame frame : frames(page)) {
+      for (String selector : HEADER_SELECTORS) {
+        try {
+          String text = frame.locator(selector).first().innerText();
+          if (text != null && !text.isBlank()) {
+            return text.trim();
+          }
+        } catch (Exception ignored) {
+          // try next
         }
-      } catch (Exception ignored) {
-        // try next
+      }
+      String body = safeInnerText(frame, "body");
+      if (body != null && !body.isBlank()) {
+        Matcher matcher = HEADER_RX.matcher(body);
+        if (matcher.find()) {
+          return matcher.group(0);
+        }
       }
     }
     return null;
   }
 
   private List<LotecaJogoDTO> findJogos(Page page) {
-    for (String selector : ROW_SELECTORS) {
-      List<ElementHandle> rows = page.querySelectorAll(selector);
-      List<LotecaJogoDTO> jogos = parseRows(rows);
-      if (!jogos.isEmpty()) {
-        return jogos;
+    for (Frame frame : frames(page)) {
+      for (String selector : ROW_SELECTORS) {
+        List<ElementHandle> rows = frame.querySelectorAll(selector);
+        List<LotecaJogoDTO> jogos = parseRows(rows);
+        if (!jogos.isEmpty()) {
+          return jogos;
+        }
       }
     }
     return List.of();
@@ -170,6 +198,51 @@ public class CaixaLotecaScraper {
     return jogos;
   }
 
+  private ScrapedLotecaResult fetchFromApi(Playwright playwright) {
+    APIRequestContext request = playwright.request().newContext();
+    try {
+      APIResponse response = request.get(API_URL);
+      if (!response.ok()) {
+        return null;
+      }
+      String body = response.text();
+      JsonNode root = MAPPER.readTree(body);
+      String concurso = textOrNull(root, "numero");
+      String dataApuracao = textOrNull(root, "dataApuracao");
+      List<LotecaJogoDTO> jogos = readJogos(root.get("listaResultadoEquipeEsportiva"));
+      if (concurso == null || dataApuracao == null || jogos.isEmpty()) {
+        return null;
+      }
+      return new ScrapedLotecaResult(concurso, dataApuracao, jogos);
+    } catch (Exception ex) {
+      return null;
+    } finally {
+      request.dispose();
+    }
+  }
+
+  private List<LotecaJogoDTO> readJogos(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    List<LotecaJogoDTO> jogos = new ArrayList<>();
+    int fallbackIndex = 1;
+    for (JsonNode item : node) {
+      String time1 = textOrNull(item, "nomeEquipeUm");
+      String time2 = textOrNull(item, "nomeEquipeDois");
+      String gols1 = textOrNull(item, "nuGolEquipeUm");
+      String gols2 = textOrNull(item, "nuGolEquipeDois");
+      if (time1 == null || time2 == null) {
+        fallbackIndex++;
+        continue;
+      }
+      int jogo = item.path("nuSequencial").asInt(fallbackIndex);
+      jogos.add(new LotecaJogoDTO(jogo, time1, gols1 == null ? "" : gols1, time2, gols2 == null ? "" : gols2));
+      fallbackIndex++;
+    }
+    return jogos;
+  }
+
   private int parseJogo(String raw, int fallback) {
     if (raw == null) {
       return fallback;
@@ -190,5 +263,35 @@ public class CaixaLotecaScraper {
     } catch (Exception ex) {
       return "";
     }
+  }
+
+  private String textOrNull(JsonNode node, String field) {
+    if (node == null) {
+      return null;
+    }
+    JsonNode value = node.get(field);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    String text = value.asText();
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    return text.trim();
+  }
+
+  private String safeInnerText(Frame frame, String selector) {
+    if (frame == null) {
+      return null;
+    }
+    try {
+      return frame.innerText(selector);
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private List<Frame> frames(Page page) {
+    return page.frames();
   }
 }

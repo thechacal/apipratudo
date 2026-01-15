@@ -14,10 +14,10 @@ import org.springframework.validation.annotation.Validated;
 public class PlaywrightConfig {
 
   @Min(1000)
-  private int timeoutMs = 12000;
+  private int timeoutMs = 20000;
 
   @Min(1000)
-  private int navigationTimeoutMs = 12000;
+  private int navigationTimeoutMs = 20000;
 
   @NotBlank
   private String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
