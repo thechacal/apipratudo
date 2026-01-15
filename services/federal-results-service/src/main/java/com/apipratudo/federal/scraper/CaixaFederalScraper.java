@@ -4,6 +4,10 @@ import com.apipratudo.federal.config.PlaywrightConfig;
 import com.apipratudo.federal.dto.PremioDTO;
 import com.apipratudo.federal.error.UpstreamBadResponseException;
 import com.apipratudo.federal.error.UpstreamTimeoutException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.playwright.APIRequestContext;
+import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -14,8 +18,12 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
@@ -24,6 +32,8 @@ import org.springframework.stereotype.Component;
 public class CaixaFederalScraper {
 
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Federal.aspx";
+  private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/federal";
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
       Pattern.CASE_INSENSITIVE);
   private static final List<String> ROW_SELECTORS = List.of(
@@ -63,41 +73,49 @@ public class CaixaFederalScraper {
           page.waitForLoadState(LoadState.DOMCONTENTLOADED);
           page.waitForLoadState(LoadState.NETWORKIDLE);
 
-          List<ElementHandle> rows = findRows(page);
-          if (rows.isEmpty()) {
-            rows = findRowsInFrames(page.frames());
-          }
-          if (rows.isEmpty()) {
-            throw new UpstreamBadResponseException("Elemento de resultado nao encontrado",
-                List.of("Elemento de resultado nao encontrado"));
-          }
+          try {
+            List<ElementHandle> rows = findRows(page);
+            if (rows.isEmpty()) {
+              rows = findRowsInFrames(page.frames());
+            }
+            if (rows.isEmpty()) {
+              throw new UpstreamBadResponseException("Elemento de resultado nao encontrado",
+                  List.of("Elemento de resultado nao encontrado"));
+            }
 
-          String titulo = extractHeaderText(page);
-          Matcher matcher = HEADER_RX.matcher(titulo);
-          if (!matcher.find()) {
-            for (Frame frame : page.frames()) {
-              titulo = extractHeaderText(frame);
-              matcher = HEADER_RX.matcher(titulo);
-              if (matcher.find()) {
-                break;
+            String titulo = extractHeaderText(page);
+            Matcher matcher = HEADER_RX.matcher(titulo);
+            if (!matcher.find()) {
+              for (Frame frame : page.frames()) {
+                titulo = extractHeaderText(frame);
+                matcher = HEADER_RX.matcher(titulo);
+                if (matcher.find()) {
+                  break;
+                }
               }
             }
-          }
-          if (!matcher.find()) {
-            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                List.of("Cabecalho do concurso nao encontrado"));
-          }
+            if (!matcher.find()) {
+              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                  List.of("Cabecalho do concurso nao encontrado"));
+            }
 
-          String concurso = matcher.group(1);
-          String dataApuracao = matcher.group(2);
-          List<PremioDTO> premios = extractPremios(rows);
+            String concurso = matcher.group(1);
+            String dataApuracao = matcher.group(2);
+            List<PremioDTO> premios = extractPremios(rows);
 
-          if (premios.size() != 5) {
-            throw new UpstreamBadResponseException("Tabela de resultados incompleta",
-                List.of("Tabela de resultados incompleta"));
+            if (premios.size() != 5) {
+              throw new UpstreamBadResponseException("Tabela de resultados incompleta",
+                  List.of("Tabela de resultados incompleta"));
+            }
+
+            return new ScrapedFederalResult(concurso, dataApuracao, premios);
+          } catch (UpstreamBadResponseException ex) {
+            ScrapedFederalResult fallback = fetchFromApi(playwright);
+            if (fallback != null) {
+              return fallback;
+            }
+            throw ex;
           }
-
-          return new ScrapedFederalResult(concurso, dataApuracao, premios);
         }
       }
     } catch (TimeoutError ex) {
@@ -145,6 +163,127 @@ public class CaixaFederalScraper {
       return filtered;
     }
     return List.of();
+  }
+
+  private ScrapedFederalResult fetchFromApi(Playwright playwright) {
+    APIRequestContext request = playwright.request().newContext();
+    try {
+      APIResponse response = request.get(API_URL);
+      if (!response.ok()) {
+        return null;
+      }
+      JsonNode root = MAPPER.readTree(response.text());
+      String concurso = textOrNull(root, "numero");
+      String dataApuracao = textOrNull(root, "dataApuracao");
+      List<String> dezenas = readStringList(root.get("listaDezenas"));
+      Map<Integer, Double> premios = readPremios(root.get("listaRateioPremio"));
+      List<PremioDTO> resultados = readMunicipios(root.get("listaMunicipioUFGanhadores"), dezenas, premios);
+      if (concurso == null || dataApuracao == null || resultados.size() != 5) {
+        return null;
+      }
+      return new ScrapedFederalResult(concurso, dataApuracao, resultados);
+    } catch (Exception ex) {
+      return null;
+    } finally {
+      request.dispose();
+    }
+  }
+
+  private List<String> readStringList(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    List<String> values = new ArrayList<>();
+    for (JsonNode item : node) {
+      String text = item.asText();
+      if (text != null && !text.isBlank()) {
+        values.add(text.trim());
+      }
+    }
+    return values;
+  }
+
+  private Map<Integer, Double> readPremios(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return Map.of();
+    }
+    Map<Integer, Double> premios = new HashMap<>();
+    for (JsonNode item : node) {
+      if (item == null || item.isNull()) {
+        continue;
+      }
+      int faixa = item.path("faixa").asInt();
+      if (faixa <= 0) {
+        continue;
+      }
+      double valor = item.path("valorPremio").asDouble();
+      premios.put(faixa, valor);
+    }
+    return premios;
+  }
+
+  private List<PremioDTO> readMunicipios(JsonNode node, List<String> dezenas, Map<Integer, Double> premios) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    PremioDTO[] results = new PremioDTO[5];
+    for (JsonNode item : node) {
+      if (item == null || item.isNull()) {
+        continue;
+      }
+      String serie = item.path("serie").asText();
+      if (!"A".equalsIgnoreCase(serie)) {
+        continue;
+      }
+      int posicao = item.path("posicao").asInt();
+      if (posicao < 1 || posicao > 5) {
+        continue;
+      }
+      String bilhete = posicao <= dezenas.size() ? dezenas.get(posicao - 1) : "";
+      String unidade = textOrNull(item, "nomeFatansiaUL");
+      String municipio = textOrNull(item, "municipio");
+      String uf = textOrNull(item, "uf");
+      String cidadeUf = municipio == null ? "" : municipio;
+      if (uf != null && !uf.isBlank()) {
+        cidadeUf = cidadeUf.isBlank() ? uf : cidadeUf + "/" + uf;
+      }
+      double valor = premios.getOrDefault(posicao, 0.0);
+      String valorPremio = formatCurrency(valor);
+      String destino = posicao + "º";
+      results[posicao - 1] = new PremioDTO(destino, bilhete, safeValue(unidade), cidadeUf, valorPremio);
+    }
+    List<PremioDTO> itens = new ArrayList<>();
+    for (PremioDTO premio : results) {
+      if (premio != null) {
+        itens.add(premio);
+      }
+    }
+    return itens;
+  }
+
+  private String textOrNull(JsonNode node, String field) {
+    if (node == null) {
+      return null;
+    }
+    JsonNode value = node.get(field);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    String text = value.asText();
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    return text.trim();
+  }
+
+  private String safeValue(String value) {
+    return value == null ? "" : value.trim();
+  }
+
+  private String formatCurrency(double value) {
+    NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("pt", "BR"));
+    String formatted = format.format(value);
+    return formatted.replace('\u00A0', ' ').trim();
   }
 
   private List<ElementHandle> findRows(Frame frame) {
