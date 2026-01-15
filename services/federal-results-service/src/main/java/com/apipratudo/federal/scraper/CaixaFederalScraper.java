@@ -6,8 +6,6 @@ import com.apipratudo.federal.error.UpstreamBadResponseException;
 import com.apipratudo.federal.error.UpstreamTimeoutException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.playwright.APIRequestContext;
-import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -18,6 +16,10 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -110,7 +112,7 @@ public class CaixaFederalScraper {
 
             return new ScrapedFederalResult(concurso, dataApuracao, premios);
           } catch (UpstreamBadResponseException ex) {
-            ScrapedFederalResult fallback = fetchFromApi(playwright);
+            ScrapedFederalResult fallback = fetchFromApi();
             if (fallback != null) {
               return fallback;
             }
@@ -123,6 +125,10 @@ public class CaixaFederalScraper {
     } catch (UpstreamBadResponseException ex) {
       throw ex;
     } catch (Exception ex) {
+      ScrapedFederalResult fallback = fetchFromApi();
+      if (fallback != null) {
+        return fallback;
+      }
       throw new UpstreamBadResponseException("Falha ao consultar resultado oficial da CAIXA",
           List.of("Elemento de resultado nao encontrado"));
     }
@@ -165,14 +171,20 @@ public class CaixaFederalScraper {
     return List.of();
   }
 
-  private ScrapedFederalResult fetchFromApi(Playwright playwright) {
-    APIRequestContext request = playwright.request().newContext();
+  private ScrapedFederalResult fetchFromApi() {
+    HttpClient client = HttpClient.newBuilder()
+        .connectTimeout(java.time.Duration.ofSeconds(5))
+        .build();
     try {
-      APIResponse response = request.get(API_URL);
-      if (!response.ok()) {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+          .timeout(java.time.Duration.ofSeconds(10))
+          .GET()
+          .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
         return null;
       }
-      JsonNode root = MAPPER.readTree(response.text());
+      JsonNode root = MAPPER.readTree(response.body());
       String concurso = textOrNull(root, "numero");
       String dataApuracao = textOrNull(root, "dataApuracao");
       List<String> dezenas = readStringList(root.get("listaDezenas"));
@@ -184,8 +196,6 @@ public class CaixaFederalScraper {
       return new ScrapedFederalResult(concurso, dataApuracao, resultados);
     } catch (Exception ex) {
       return null;
-    } finally {
-      request.dispose();
     }
   }
 
