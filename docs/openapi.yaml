@@ -273,6 +273,270 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/federal/resultado-oficial:
+    get:
+      summary: Resultado oficial Loteria Federal
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Loteria Federal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FederalResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/lotofacil/resultado-oficial:
+    get:
+      summary: Resultado oficial Lotofacil
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Lotofacil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotofacilResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/megasena/resultado-oficial:
+    get:
+      summary: Resultado oficial Mega-Sena
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Mega-Sena
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MegasenaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/quina/resultado-oficial:
+    get:
+      summary: Resultado oficial Quina
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Quina
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuinaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/lotomania/resultado-oficial:
+    get:
+      summary: Resultado oficial Lotomania
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Lotomania
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotomaniaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/timemania/resultado-oficial:
+    get:
+      summary: Resultado oficial Timemania
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Timemania
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimemaniaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/duplasena/resultado-oficial:
+    get:
+      summary: Resultado oficial Dupla Sena
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Dupla Sena
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplasenaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/loteca/resultado-oficial:
+    get:
+      summary: Resultado oficial Loteca
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Loteca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotecaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/diadesorte/resultado-oficial:
+    get:
+      summary: Resultado oficial Dia de Sorte
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial do Dia de Sorte
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiadesorteResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/supersete/resultado-oficial:
+    get:
+      summary: Resultado oficial Super Sete
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial do Super Sete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuperseteResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/maismilionaria/resultado-oficial:
+    get:
+      summary: Resultado oficial Mais Milionaria
+      tags:
+        - loterias
+      responses:
+        "200":
+          description: Resultado oficial da Mais Milionaria
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaismilionariaResultadoOficialResponse"
+        "502":
+          description: Falha ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Timeout ao consultar resultado oficial da CAIXA
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -477,3 +741,410 @@ components:
         traceId:
           type: string
           example: 4bf92f3577b34da6a3ce929d0e0e4736
+    FederalPremio:
+      type: object
+      required:
+        - destino
+        - bilhete
+        - unidadeLoterica
+        - cidadeUf
+        - valorPremio
+      properties:
+        destino:
+          type: string
+          example: "1º"
+        bilhete:
+          type: string
+          example: "12345"
+        unidadeLoterica:
+          type: string
+          example: Lotérica Centro
+        cidadeUf:
+          type: string
+          example: Sao Paulo/SP
+        valorPremio:
+          type: string
+          example: R$ 500.000,00
+    FederalResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - premios
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: FEDERAL
+        concurso:
+          type: string
+          example: "5970"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2026-01-10"
+        premios:
+          type: array
+          items:
+            $ref: "#/components/schemas/FederalPremio"
+        capturadoEm:
+          type: string
+          format: date-time
+    LotofacilResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: LOTOFACIL
+        concurso:
+          type: string
+          example: "3468"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        capturadoEm:
+          type: string
+          format: date-time
+    MegasenaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: MEGA_SENA
+        concurso:
+          type: string
+          example: "2760"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        capturadoEm:
+          type: string
+          format: date-time
+    QuinaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: QUINA
+        concurso:
+          type: string
+          example: "6500"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        capturadoEm:
+          type: string
+          format: date-time
+    LotomaniaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: LOTOMANIA
+        concurso:
+          type: string
+          example: "2600"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "00"
+        capturadoEm:
+          type: string
+          format: date-time
+    TimemaniaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - timeCoracao
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: TIMEMANIA
+        concurso:
+          type: string
+          example: "2100"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        timeCoracao:
+          type: string
+          example: "Time do Coracao"
+        capturadoEm:
+          type: string
+          format: date-time
+    DuplasenaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - sorteio1
+        - sorteio2
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: DUPLASENA
+        concurso:
+          type: string
+          example: "2600"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        sorteio1:
+          type: array
+          items:
+            type: string
+            example: "01"
+        sorteio2:
+          type: array
+          items:
+            type: string
+            example: "02"
+        capturadoEm:
+          type: string
+          format: date-time
+    LotecaJogo:
+      type: object
+      required:
+        - jogo
+        - time1
+        - gols1
+        - time2
+        - gols2
+      properties:
+        jogo:
+          type: integer
+          example: 1
+        time1:
+          type: string
+          example: TIME A
+        gols1:
+          type: string
+          example: "0"
+        time2:
+          type: string
+          example: TIME B
+        gols2:
+          type: string
+          example: "0"
+    LotecaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - jogos
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: LOTECA
+        concurso:
+          type: string
+          example: "1150"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        jogos:
+          type: array
+          items:
+            $ref: "#/components/schemas/LotecaJogo"
+        capturadoEm:
+          type: string
+          format: date-time
+    DiadesorteResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - mesDaSorte
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: DIADESORTE
+        concurso:
+          type: string
+          example: "1000"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        mesDaSorte:
+          type: string
+          example: JANEIRO
+        capturadoEm:
+          type: string
+          format: date-time
+    SuperseteResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - colunas
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: SUPERSETE
+        concurso:
+          type: string
+          example: "400"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        colunas:
+          type: array
+          items:
+            type: string
+            example: "0"
+        capturadoEm:
+          type: string
+          format: date-time
+    MaismilionariaResultadoOficialResponse:
+      type: object
+      required:
+        - fonte
+        - loteria
+        - concurso
+        - dataApuracao
+        - dezenas
+        - trevos
+        - capturadoEm
+      properties:
+        fonte:
+          type: string
+          example: CAIXA
+        loteria:
+          type: string
+          example: MAISMILIONARIA
+        concurso:
+          type: string
+          example: "200"
+        dataApuracao:
+          type: string
+          format: date
+          example: "2025-08-13"
+        dezenas:
+          type: array
+          items:
+            type: string
+            example: "01"
+        trevos:
+          type: array
+          items:
+            type: string
+            example: "01"
+        capturadoEm:
+          type: string
+          format: date-time

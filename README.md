@@ -3,7 +3,7 @@
 Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco em consumo por terceiros com quotas.
 
 ## Servicos
-- Implementados: api-gateway, quota-service, webhook-service
+- Implementados: api-gateway, quota-service, webhook-service, federal-results-service, lotofacil-results-service, megasena-results-service, quina-results-service, lotomania-results-service, timemania-results-service, duplasena-results-service, loteca-results-service, diadesorte-results-service, supersete-results-service, maismilionaria-results-service
 - Planejados: file-service, cep-service, developer-portal
 
 ## Implementado ate agora
@@ -15,6 +15,27 @@ Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco 
 - Idempotencia de quota: requestId usa Idempotency-Key apenas em metodos mutaveis; GET/HEAD/OPTIONS nao usam.
 - Fallback automatico para InMemory quando Firestore nao esta disponivel.
 - Calculo consistente de janelas minute/day e status alinhado ao consume.
+- Servicos de resultados da CAIXA expostos pelo gateway (/v1/*/resultado-oficial).
+
+## Lottery Results Services (via gateway)
+Endpoints (usar X-Api-Key):
+- GET /v1/federal/resultado-oficial
+- GET /v1/lotofacil/resultado-oficial
+- GET /v1/megasena/resultado-oficial
+- GET /v1/quina/resultado-oficial
+- GET /v1/lotomania/resultado-oficial
+- GET /v1/timemania/resultado-oficial
+- GET /v1/duplasena/resultado-oficial
+- GET /v1/loteca/resultado-oficial
+- GET /v1/diadesorte/resultado-oficial
+- GET /v1/supersete/resultado-oficial
+- GET /v1/maismilionaria/resultado-oficial
+
+Exemplo:
+```bash
+curl -s -H "X-Api-Key: $API_KEY" \
+  http://localhost:8080/v1/megasena/resultado-oficial | jq
+```
 
 ## Arquitetura
 - docs/architecture.md
