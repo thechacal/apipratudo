@@ -5,8 +5,6 @@ import com.apipratudo.timemania.error.UpstreamBadResponseException;
 import com.apipratudo.timemania.error.UpstreamTimeoutException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.playwright.APIRequestContext;
-import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -17,6 +15,10 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -119,7 +121,7 @@ public class CaixaTimemaniaScraper {
 
             return new ScrapedTimemaniaResult(concurso, dataApuracao, dezenas, timeCoracao);
           } catch (UpstreamBadResponseException ex) {
-            ScrapedTimemaniaResult fallback = fetchFromApi(playwright);
+            ScrapedTimemaniaResult fallback = fetchFromApi();
             if (fallback != null) {
               return fallback;
             }
@@ -237,15 +239,20 @@ public class CaixaTimemaniaScraper {
     return null;
   }
 
-  private ScrapedTimemaniaResult fetchFromApi(Playwright playwright) {
-    APIRequestContext request = playwright.request().newContext();
+  private ScrapedTimemaniaResult fetchFromApi() {
+    HttpClient client = HttpClient.newBuilder()
+        .connectTimeout(java.time.Duration.ofSeconds(5))
+        .build();
     try {
-      APIResponse response = request.get(API_URL);
-      if (!response.ok()) {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+          .timeout(java.time.Duration.ofSeconds(10))
+          .GET()
+          .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
         return null;
       }
-      String body = response.text();
-      JsonNode root = MAPPER.readTree(body);
+      JsonNode root = MAPPER.readTree(response.body());
       String concurso = textOrNull(root, "numero");
       String dataApuracao = textOrNull(root, "dataApuracao");
       List<String> dezenas = normalizeDezenas(readStringList(root.get("listaDezenas")));
@@ -256,8 +263,6 @@ public class CaixaTimemaniaScraper {
       return new ScrapedTimemaniaResult(concurso, dataApuracao, dezenas, timeCoracao);
     } catch (Exception ex) {
       return null;
-    } finally {
-      request.dispose();
     }
   }
 
