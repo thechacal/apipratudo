@@ -15,7 +15,7 @@ public class LotofacilResultsClientProperties {
   private String baseUrl = "http://localhost:8084";
 
   @Min(100)
-  private long timeoutMs = 3000;
+  private long timeoutMs = 30000;
 
   public String getBaseUrl() {
     return baseUrl;
