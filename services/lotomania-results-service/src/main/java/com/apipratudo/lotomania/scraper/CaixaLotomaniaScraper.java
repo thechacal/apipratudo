@@ -3,6 +3,8 @@ package com.apipratudo.lotomania.scraper;
 import com.apipratudo.lotomania.config.PlaywrightConfig;
 import com.apipratudo.lotomania.error.UpstreamBadResponseException;
 import com.apipratudo.lotomania.error.UpstreamTimeoutException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -12,6 +14,10 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +30,8 @@ import org.springframework.stereotype.Component;
 public class CaixaLotomaniaScraper {
 
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Lotomania.aspx";
+  private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotomania";
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
       Pattern.CASE_INSENSITIVE);
   private static final Pattern DEZENA_RX = Pattern.compile("\\b(0?\\d|[1-9]\\d)\\b");
@@ -101,6 +109,12 @@ public class CaixaLotomaniaScraper {
           }
 
           return new ScrapedLotomaniaResult(concurso, dataApuracao, dezenas);
+        } catch (UpstreamBadResponseException ex) {
+          ScrapedLotomaniaResult fallback = fetchFromApi();
+          if (fallback != null) {
+            return fallback;
+          }
+          throw ex;
         }
       }
     } catch (TimeoutError ex) {
@@ -108,6 +122,10 @@ public class CaixaLotomaniaScraper {
     } catch (UpstreamBadResponseException ex) {
       throw ex;
     } catch (Exception ex) {
+      ScrapedLotomaniaResult fallback = fetchFromApi();
+      if (fallback != null) {
+        return fallback;
+      }
       throw new UpstreamBadResponseException("Falha ao consultar resultado oficial da CAIXA",
           List.of("Elemento de resultado nao encontrado"));
     }
@@ -175,6 +193,86 @@ public class CaixaLotomaniaScraper {
       dezenas.add(String.format("%02d", value));
     }
     return dezenas;
+  }
+
+  private ScrapedLotomaniaResult fetchFromApi() {
+    HttpClient client = HttpClient.newBuilder()
+        .connectTimeout(java.time.Duration.ofSeconds(5))
+        .build();
+    try {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+          .timeout(java.time.Duration.ofSeconds(10))
+          .GET()
+          .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
+        return null;
+      }
+      JsonNode root = MAPPER.readTree(response.body());
+      String concurso = textOrNull(root, "numero");
+      String dataApuracao = textOrNull(root, "dataApuracao");
+      List<String> dezenas = normalizeDezenas(readStringList(root.get("listaDezenas")));
+      if (concurso == null || dataApuracao == null || dezenas.size() != 20) {
+        return null;
+      }
+      return new ScrapedLotomaniaResult(concurso, dataApuracao, dezenas);
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private List<String> readStringList(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    List<String> values = new ArrayList<>();
+    for (JsonNode item : node) {
+      String text = item.asText();
+      if (text != null && !text.isBlank()) {
+        values.add(text.trim());
+      }
+    }
+    return values;
+  }
+
+  private List<String> normalizeDezenas(List<String> raw) {
+    Set<Integer> values = new TreeSet<>();
+    for (String item : raw) {
+      if (item == null || item.isBlank()) {
+        continue;
+      }
+      try {
+        int value = Integer.parseInt(item.trim());
+        if (value >= 0 && value <= 99) {
+          values.add(value);
+        }
+      } catch (NumberFormatException ignored) {
+        // skip
+      }
+    }
+    if (values.size() != 20) {
+      return List.of();
+    }
+    List<String> dezenas = new ArrayList<>(20);
+    for (int value : values) {
+      dezenas.add(String.format("%02d", value));
+    }
+    return dezenas;
+  }
+
+  private String textOrNull(JsonNode node, String field) {
+    if (node == null) {
+      return null;
+    }
+    JsonNode value = node.get(field);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    String text = value.asText();
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    return text.trim();
   }
 
   private String safeText(ElementHandle handle) {
