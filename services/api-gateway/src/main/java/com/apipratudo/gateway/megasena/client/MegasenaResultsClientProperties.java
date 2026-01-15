@@ -15,7 +15,7 @@ public class MegasenaResultsClientProperties {
   private String baseUrl = "http://localhost:8085";
 
   @Min(100)
-  private long timeoutMs = 30000;
+  private long timeoutMs = 60000;
 
   public String getBaseUrl() {
     return baseUrl;

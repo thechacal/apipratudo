@@ -19,47 +19,47 @@ webhook:
 
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
-  timeout-ms: ${FEDERAL_TIMEOUT_MS:30000}
+  timeout-ms: ${FEDERAL_TIMEOUT_MS:60000}
 
 lotofacil:
   base-url: ${LOTOFACIL_BASE_URL:http://localhost:8084}
-  timeout-ms: ${LOTOFACIL_TIMEOUT_MS:30000}
+  timeout-ms: ${LOTOFACIL_TIMEOUT_MS:60000}
 
 megasena:
   base-url: ${MEGASENA_BASE_URL:http://localhost:8085}
-  timeout-ms: ${MEGASENA_TIMEOUT_MS:30000}
+  timeout-ms: ${MEGASENA_TIMEOUT_MS:60000}
 
 quina:
   base-url: ${QUINA_BASE_URL:http://localhost:8086}
-  timeout-ms: ${QUINA_TIMEOUT_MS:30000}
+  timeout-ms: ${QUINA_TIMEOUT_MS:60000}
 
 lotomania:
   base-url: ${LOTOMANIA_BASE_URL:http://localhost:8087}
-  timeout-ms: ${LOTOMANIA_TIMEOUT_MS:30000}
+  timeout-ms: ${LOTOMANIA_TIMEOUT_MS:60000}
 
 timemania:
   base-url: ${TIMEMANIA_BASE_URL:http://localhost:8088}
-  timeout-ms: ${TIMEMANIA_TIMEOUT_MS:30000}
+  timeout-ms: ${TIMEMANIA_TIMEOUT_MS:60000}
 
 duplasena:
   base-url: ${DUPLASENA_BASE_URL:http://localhost:8089}
-  timeout-ms: ${DUPLASENA_TIMEOUT_MS:30000}
+  timeout-ms: ${DUPLASENA_TIMEOUT_MS:60000}
 
 loteca:
   base-url: ${LOTECA_BASE_URL:http://localhost:8090}
-  timeout-ms: ${LOTECA_TIMEOUT_MS:30000}
+  timeout-ms: ${LOTECA_TIMEOUT_MS:60000}
 
 diadesorte:
   base-url: ${DIADESORTE_BASE_URL:http://localhost:8091}
-  timeout-ms: ${DIADESORTE_TIMEOUT_MS:30000}
+  timeout-ms: ${DIADESORTE_TIMEOUT_MS:60000}
 
 supersete:
   base-url: ${SUPERSETE_BASE_URL:http://localhost:8092}
-  timeout-ms: ${SUPERSETE_TIMEOUT_MS:30000}
+  timeout-ms: ${SUPERSETE_TIMEOUT_MS:60000}
 
 maismilionaria:
   base-url: ${MAISMILIONARIA_BASE_URL:http://localhost:8093}
-  timeout-ms: ${MAISMILIONARIA_TIMEOUT_MS:30000}
+  timeout-ms: ${MAISMILIONARIA_TIMEOUT_MS:60000}
 
 app:
   firestore:
