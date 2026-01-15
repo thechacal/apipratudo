@@ -61,6 +61,7 @@ public class CaixaFederalScraper {
               .setTimeout((double) config.getNavigationTimeoutMs())
               .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
           page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+          page.waitForLoadState(LoadState.NETWORKIDLE);
 
           List<ElementHandle> rows = findRows(page);
           if (rows.isEmpty()) {
@@ -122,6 +123,27 @@ public class CaixaFederalScraper {
         // try next selector
       }
     }
+    return findGenericRows(page.querySelectorAll("table tbody tr"));
+  }
+
+  private List<ElementHandle> findGenericRows(List<ElementHandle> rows) {
+    List<ElementHandle> filtered = new ArrayList<>();
+    for (ElementHandle row : rows) {
+      try {
+        List<ElementHandle> cols = row.querySelectorAll("td");
+        if (cols.size() >= 5) {
+          filtered.add(row);
+        }
+      } catch (Exception ignored) {
+        // ignore row
+      }
+      if (filtered.size() >= 5) {
+        break;
+      }
+    }
+    if (filtered.size() >= 5) {
+      return filtered;
+    }
     return List.of();
   }
 
@@ -138,7 +160,7 @@ public class CaixaFederalScraper {
         // try next selector
       }
     }
-    return List.of();
+    return findGenericRows(frame.querySelectorAll("table tbody tr"));
   }
 
   private List<ElementHandle> findRowsInFrames(List<Frame> frames) {
@@ -153,18 +175,32 @@ public class CaixaFederalScraper {
 
   private String extractHeaderText(Page page) {
     try {
-      return page.locator("h2").first().innerText().trim();
+      List<ElementHandle> headers = page.querySelectorAll("h2, h3");
+      for (ElementHandle header : headers) {
+        String text = safeText(header);
+        if (HEADER_RX.matcher(text).find()) {
+          return text;
+        }
+      }
     } catch (Exception ignored) {
       return "";
     }
+    return "";
   }
 
   private String extractHeaderText(Frame frame) {
     try {
-      return frame.locator("h2").first().innerText().trim();
+      List<ElementHandle> headers = frame.querySelectorAll("h2, h3");
+      for (ElementHandle header : headers) {
+        String text = safeText(header);
+        if (HEADER_RX.matcher(text).find()) {
+          return text;
+        }
+      }
     } catch (Exception ignored) {
       return "";
     }
+    return "";
   }
 
   private List<PremioDTO> extractPremios(List<ElementHandle> rows) {
