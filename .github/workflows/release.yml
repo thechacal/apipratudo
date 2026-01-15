@@ -8,6 +8,7 @@ on:
       - "webhook-service-v*"
       - "federal-results-service-v*"
       - "lotofacil-results-service-v*"
+      - "megasena-results-service-v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -40,6 +41,9 @@ jobs:
           - name: lotofacil-results-service
             service: services/lotofacil-results-service
             tag_prefix: lotofacil-results-service-v
+          - name: megasena-results-service
+            service: services/megasena-results-service
+            tag_prefix: megasena-results-service-v
 
     steps:
       - name: Checkout
