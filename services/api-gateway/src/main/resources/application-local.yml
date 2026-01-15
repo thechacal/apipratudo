@@ -13,3 +13,19 @@ lotofacil:
   base-url: http://localhost:8084
 megasena:
   base-url: http://localhost:8085
+quina:
+  base-url: http://localhost:8086
+lotomania:
+  base-url: http://localhost:8087
+timemania:
+  base-url: http://localhost:8088
+duplasena:
+  base-url: http://localhost:8089
+loteca:
+  base-url: http://localhost:8090
+diadesorte:
+  base-url: http://localhost:8091
+supersete:
+  base-url: http://localhost:8092
+maismilionaria:
+  base-url: http://localhost:8093
