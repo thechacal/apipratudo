@@ -21,6 +21,10 @@ federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
   timeout-ms: ${FEDERAL_TIMEOUT_MS:3000}
 
+lotofacil:
+  base-url: ${LOTOFACIL_BASE_URL:http://localhost:8084}
+  timeout-ms: ${LOTOFACIL_TIMEOUT_MS:3000}
+
 app:
   firestore:
     enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
