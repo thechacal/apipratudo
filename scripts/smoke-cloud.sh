@@ -30,17 +30,9 @@ require_cmd curl
 require_cmd jq
 require_cmd gcloud
 
-if [ -z "$GW_URL" ]; then
-  GW_URL=$(gcloud run services describe api-gateway --region "$REGION" --format='value(status.url)')
-fi
-
-if [ -z "$QUOTA_URL" ]; then
-  QUOTA_URL=$(gcloud run services describe quota-service --region "$REGION" --format='value(status.url)')
-fi
-
-if [ -z "$API_KEY" ]; then
+refresh_api_key() {
   if [ -z "$ADMIN_TOKEN" ]; then
-    echo "Defina API_KEY ou ADMIN_TOKEN (para criar uma key via quota-service)." >&2
+    echo "API key invalida e ADMIN_TOKEN nao definido para regenerar." >&2
     exit 1
   fi
   API_KEY=$(curl -s -X POST "$QUOTA_URL/v1/api-keys" \
@@ -52,6 +44,19 @@ if [ -z "$API_KEY" ]; then
     echo "Falha ao gerar API key via quota-service." >&2
     exit 1
   fi
+  printf "%s" "$API_KEY" > "$API_KEY_FILE"
+}
+
+if [ -z "$GW_URL" ]; then
+  GW_URL=$(gcloud run services describe api-gateway --region "$REGION" --format='value(status.url)')
+fi
+
+if [ -z "$QUOTA_URL" ]; then
+  QUOTA_URL=$(gcloud run services describe quota-service --region "$REGION" --format='value(status.url)')
+fi
+
+if [ -z "$API_KEY" ]; then
+  refresh_api_key
 fi
 
 endpoints=(
@@ -70,23 +75,33 @@ endpoints=(
 echo "GW_URL=$GW_URL"
 echo "QUOTA_URL=$QUOTA_URL"
 
+refreshed=0
+
 for e in "${endpoints[@]}"; do
   url="$GW_URL/v1/$e/resultado-oficial"
-  resp_file=$(mktemp)
-  code=$(curl -s -o "$resp_file" -w "%{http_code}" -H "X-Api-Key: $API_KEY" "$url")
-  loteria=$(jq -r '.loteria // empty' "$resp_file" 2>/dev/null || true)
-  err=$(jq -r '.error // empty' "$resp_file" 2>/dev/null || true)
-  if [ -n "$loteria" ]; then
-    echo "$e -> $code ($loteria)"
-  elif [ -n "$err" ]; then
-    echo "$e -> $code (error=$err)"
-  else
-    echo "$e -> $code"
-  fi
-  rm -f "$resp_file"
-  if [ "$code" != "200" ]; then
-    exit 1
-  fi
+  while true; do
+    resp_file=$(mktemp)
+    code=$(curl -s -o "$resp_file" -w "%{http_code}" -H "X-Api-Key: $API_KEY" "$url")
+    loteria=$(jq -r '.loteria // empty' "$resp_file" 2>/dev/null || true)
+    err=$(jq -r '.error // empty' "$resp_file" 2>/dev/null || true)
+    if [ -n "$loteria" ]; then
+      echo "$e -> $code ($loteria)"
+    elif [ -n "$err" ]; then
+      echo "$e -> $code (error=$err)"
+    else
+      echo "$e -> $code"
+    fi
+    rm -f "$resp_file"
+    if [ "$code" = "401" ] && [ "$refreshed" -eq 0 ]; then
+      refresh_api_key
+      refreshed=1
+      continue
+    fi
+    if [ "$code" != "200" ]; then
+      exit 1
+    fi
+    break
+  done
 done
 
 echo "OK: todos os endpoints retornaram 200."
