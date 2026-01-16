@@ -5,8 +5,6 @@ import com.apipratudo.maismilionaria.error.UpstreamBadResponseException;
 import com.apipratudo.maismilionaria.error.UpstreamTimeoutException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.playwright.APIRequestContext;
-import com.microsoft.playwright.APIResponse;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -17,6 +15,11 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -94,44 +97,46 @@ public class CaixaMaismilionariaScraper {
 
           waitForReady(page);
 
-          try {
-            String header = findHeader(page);
-            if (header == null || header.isBlank()) {
-              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                  List.of("Cabecalho do concurso nao encontrado"));
-            }
-
-            Matcher matcher = HEADER_RX.matcher(header);
-            if (!matcher.find()) {
-              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                  List.of("Cabecalho do concurso nao encontrado"));
-            }
-
-            String concurso = matcher.group(1);
-            String dataApuracao = matcher.group(2);
-
-            List<String> dezenas = findDezenas(page);
-            List<String> trevos = findTrevos(page);
-            if (dezenas.size() != 6 || trevos.size() != 2) {
-              throw new UpstreamBadResponseException("Dezenas incompletas",
-                  List.of("Elemento de resultado nao encontrado"));
-            }
-
-            return new ScrapedMaismilionariaResult(concurso, dataApuracao, dezenas, trevos);
-          } catch (UpstreamBadResponseException ex) {
-            ScrapedMaismilionariaResult fallback = fetchFromApi(playwright);
-            if (fallback != null) {
-              return fallback;
-            }
-            throw ex;
+          String header = findHeader(page);
+          if (header == null || header.isBlank()) {
+            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                List.of("Cabecalho do concurso nao encontrado"));
           }
+
+          Matcher matcher = HEADER_RX.matcher(header);
+          if (!matcher.find()) {
+            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                List.of("Cabecalho do concurso nao encontrado"));
+          }
+
+          String concurso = matcher.group(1);
+          String dataApuracao = matcher.group(2);
+
+          List<String> dezenas = findDezenas(page);
+          List<String> trevos = findTrevos(page);
+          if (dezenas.size() != 6 || trevos.size() != 2) {
+            throw new UpstreamBadResponseException("Dezenas incompletas",
+                List.of("Elemento de resultado nao encontrado"));
+          }
+
+          return new ScrapedMaismilionariaResult(concurso, dataApuracao, dezenas, trevos);
         }
+      } catch (UpstreamBadResponseException ex) {
+        ScrapedMaismilionariaResult fallback = fetchFromApi();
+        if (fallback != null) {
+          return fallback;
+        }
+        throw ex;
       }
     } catch (TimeoutError ex) {
       throw new UpstreamTimeoutException("Timeout ao consultar resultado oficial da CAIXA", ex);
     } catch (UpstreamBadResponseException ex) {
       throw ex;
     } catch (Exception ex) {
+      ScrapedMaismilionariaResult fallback = fetchFromApi();
+      if (fallback != null) {
+        return fallback;
+      }
       throw new UpstreamBadResponseException("Falha ao consultar resultado oficial da CAIXA",
           List.of("Elemento de resultado nao encontrado"));
     }
@@ -252,15 +257,20 @@ public class CaixaMaismilionariaScraper {
     return trevos;
   }
 
-  private ScrapedMaismilionariaResult fetchFromApi(Playwright playwright) {
-    APIRequestContext request = playwright.request().newContext();
+  private ScrapedMaismilionariaResult fetchFromApi() {
+    HttpClient client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
     try {
-      APIResponse response = request.get(API_URL);
-      if (!response.ok()) {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+          .timeout(Duration.ofSeconds(10))
+          .GET()
+          .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
         return null;
       }
-      String body = response.text();
-      JsonNode root = MAPPER.readTree(body);
+      JsonNode root = MAPPER.readTree(response.body());
       String concurso = textOrNull(root, "numero");
       String dataApuracao = textOrNull(root, "dataApuracao");
       List<String> dezenas = normalizeDezenas(readStringList(root.get("listaDezenas")));
@@ -271,8 +281,6 @@ public class CaixaMaismilionariaScraper {
       return new ScrapedMaismilionariaResult(concurso, dataApuracao, dezenas, trevos);
     } catch (Exception ex) {
       return null;
-    } finally {
-      request.dispose();
     }
   }
 

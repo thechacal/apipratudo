@@ -95,49 +95,51 @@ public class CaixaTimemaniaScraper {
 
           waitForReady(page);
 
-          try {
-            String header = findHeader(page);
-            if (header == null || header.isBlank()) {
-              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                  List.of("Cabecalho do concurso nao encontrado"));
-            }
-
-            Matcher matcher = HEADER_RX.matcher(header);
-            if (!matcher.find()) {
-              throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
-                  List.of("Cabecalho do concurso nao encontrado"));
-            }
-
-            String concurso = matcher.group(1);
-            String dataApuracao = matcher.group(2);
-
-            List<String> dezenas = findDezenas(page);
-            if (dezenas.size() != 7) {
-              throw new UpstreamBadResponseException("Dezenas incompletas",
-                  List.of("Elemento de resultado nao encontrado"));
-            }
-
-            String timeCoracao = findTimeCoracao(page);
-            if (timeCoracao == null || timeCoracao.isBlank()) {
-              throw new UpstreamBadResponseException("Time do coracao nao encontrado",
-                  List.of("Elemento de resultado nao encontrado"));
-            }
-
-            return new ScrapedTimemaniaResult(concurso, dataApuracao, dezenas, timeCoracao);
-          } catch (UpstreamBadResponseException ex) {
-            ScrapedTimemaniaResult fallback = fetchFromApi();
-            if (fallback != null) {
-              return fallback;
-            }
-            throw ex;
+          String header = findHeader(page);
+          if (header == null || header.isBlank()) {
+            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                List.of("Cabecalho do concurso nao encontrado"));
           }
+
+          Matcher matcher = HEADER_RX.matcher(header);
+          if (!matcher.find()) {
+            throw new UpstreamBadResponseException("Cabecalho do concurso nao encontrado",
+                List.of("Cabecalho do concurso nao encontrado"));
+          }
+
+          String concurso = matcher.group(1);
+          String dataApuracao = matcher.group(2);
+
+          List<String> dezenas = findDezenas(page);
+          if (dezenas.size() != 7) {
+            throw new UpstreamBadResponseException("Dezenas incompletas",
+                List.of("Elemento de resultado nao encontrado"));
+          }
+
+          String timeCoracao = findTimeCoracao(page);
+          if (timeCoracao == null || timeCoracao.isBlank()) {
+            throw new UpstreamBadResponseException("Time do coracao nao encontrado",
+                List.of("Elemento de resultado nao encontrado"));
+          }
+
+          return new ScrapedTimemaniaResult(concurso, dataApuracao, dezenas, timeCoracao);
         }
+      } catch (UpstreamBadResponseException ex) {
+        ScrapedTimemaniaResult fallback = fetchFromApi();
+        if (fallback != null) {
+          return fallback;
+        }
+        throw ex;
       }
     } catch (TimeoutError ex) {
       throw new UpstreamTimeoutException("Timeout ao consultar resultado oficial da CAIXA", ex);
     } catch (UpstreamBadResponseException ex) {
       throw ex;
     } catch (Exception ex) {
+      ScrapedTimemaniaResult fallback = fetchFromApi();
+      if (fallback != null) {
+        return fallback;
+      }
       throw new UpstreamBadResponseException("Falha ao consultar resultado oficial da CAIXA",
           List.of("Elemento de resultado nao encontrado"));
     }

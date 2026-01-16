@@ -3,6 +3,8 @@ package com.apipratudo.duplasena.scraper;
 import com.apipratudo.duplasena.config.PlaywrightConfig;
 import com.apipratudo.duplasena.error.UpstreamBadResponseException;
 import com.apipratudo.duplasena.error.UpstreamTimeoutException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Browser.NewContextOptions;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
@@ -12,6 +14,11 @@ import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -24,6 +31,8 @@ import org.springframework.stereotype.Component;
 public class CaixaDuplasenaScraper {
 
   private static final String URL = "https://loterias.caixa.gov.br/Paginas/Dupla-Sena.aspx";
+  private static final String API_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/duplasena";
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Pattern HEADER_RX = Pattern.compile("Concurso\\s*(\\d+)\\s*\\((\\d{2}/\\d{2}/\\d{4})\\)",
       Pattern.CASE_INSENSITIVE);
   private static final Pattern DEZENA_RX = Pattern.compile("\\b(0?[1-9]|[1-4]\\d|50)\\b");
@@ -102,12 +111,22 @@ public class CaixaDuplasenaScraper {
 
           return new ScrapedDuplasenaResult(concurso, dataApuracao, sorteios.sorteio1(), sorteios.sorteio2());
         }
+      } catch (UpstreamBadResponseException ex) {
+        ScrapedDuplasenaResult fallback = fetchFromApi();
+        if (fallback != null) {
+          return fallback;
+        }
+        throw ex;
       }
     } catch (TimeoutError ex) {
       throw new UpstreamTimeoutException("Timeout ao consultar resultado oficial da CAIXA", ex);
     } catch (UpstreamBadResponseException ex) {
       throw ex;
     } catch (Exception ex) {
+      ScrapedDuplasenaResult fallback = fetchFromApi();
+      if (fallback != null) {
+        return fallback;
+      }
       throw new UpstreamBadResponseException("Falha ao consultar resultado oficial da CAIXA",
           List.of("Elemento de resultado nao encontrado"));
     }
@@ -200,6 +219,87 @@ public class CaixaDuplasenaScraper {
     } catch (Exception ex) {
       return "";
     }
+  }
+
+  private ScrapedDuplasenaResult fetchFromApi() {
+    HttpClient client = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .build();
+    try {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+          .timeout(Duration.ofSeconds(10))
+          .GET()
+          .build();
+      HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() != 200) {
+        return null;
+      }
+      JsonNode root = MAPPER.readTree(response.body());
+      String concurso = textOrNull(root, "numero");
+      String dataApuracao = textOrNull(root, "dataApuracao");
+      List<String> sorteio1 = normalizeDezenas(readStringList(root.get("listaDezenas")));
+      List<String> sorteio2 = normalizeDezenas(readStringList(root.get("listaDezenasSegundoSorteio")));
+      if (concurso == null || dataApuracao == null || sorteio1.size() != 6 || sorteio2.size() != 6) {
+        return null;
+      }
+      return new ScrapedDuplasenaResult(concurso, dataApuracao, sorteio1, sorteio2);
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private List<String> readStringList(JsonNode node) {
+    if (node == null || !node.isArray()) {
+      return List.of();
+    }
+    List<String> values = new ArrayList<>();
+    for (JsonNode item : node) {
+      String text = item.asText();
+      if (text != null && !text.isBlank()) {
+        values.add(text.trim());
+      }
+    }
+    return values;
+  }
+
+  private List<String> normalizeDezenas(List<String> raw) {
+    Set<Integer> values = new TreeSet<>();
+    for (String item : raw) {
+      if (item == null || item.isBlank()) {
+        continue;
+      }
+      try {
+        int value = Integer.parseInt(item.trim());
+        if (value >= 1 && value <= 50) {
+          values.add(value);
+        }
+      } catch (NumberFormatException ignored) {
+        // skip
+      }
+    }
+    if (values.size() != 6) {
+      return List.of();
+    }
+    List<String> dezenas = new ArrayList<>(6);
+    for (int value : values) {
+      dezenas.add(String.format("%02d", value));
+    }
+    return dezenas;
+  }
+
+  private String textOrNull(JsonNode node, String field) {
+    if (node == null) {
+      return null;
+    }
+    JsonNode value = node.get(field);
+    if (value == null || value.isNull()) {
+      return null;
+    }
+    String text = value.asText();
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    return text.trim();
   }
 
   private record Sorteios(List<String> sorteio1, List<String> sorteio2) {
