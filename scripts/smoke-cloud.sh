@@ -6,6 +6,8 @@ GW_URL="${GW_URL:-}"
 QUOTA_URL="${QUOTA_URL:-}"
 API_KEY="${API_KEY:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+SMOKE_SHOW_JSON="${SMOKE_SHOW_JSON:-0}"
+SMOKE_SUMMARY="${SMOKE_SUMMARY:-0}"
 
 TOKENS_FILE="/tmp/apipratudo-cloud/tokens.env"
 API_KEY_FILE="/tmp/apipratudo-cloud/api_key"
@@ -45,6 +47,37 @@ refresh_api_key() {
     exit 1
   fi
   printf "%s" "$API_KEY" > "$API_KEY_FILE"
+}
+
+print_summary() {
+  local file="$1"
+  if jq -e . >/dev/null 2>&1 < "$file"; then
+    local loteria concurso dataApuracao dezenas timeCoracao
+    loteria=$(jq -r '.loteria // empty' "$file")
+    concurso=$(jq -r '.concurso // empty' "$file")
+    dataApuracao=$(jq -r '.dataApuracao // empty' "$file")
+    dezenas=$(jq -c '.dezenas // empty' "$file")
+    timeCoracao=$(jq -r '.timeCoracao // empty' "$file")
+    echo "  resumo: loteria=${loteria:-} concurso=${concurso:-} dataApuracao=${dataApuracao:-}"
+    if [ -n "$dezenas" ] && [ "$dezenas" != "null" ]; then
+      echo "  dezenas: $dezenas"
+    fi
+    if [ -n "$timeCoracao" ]; then
+      echo "  timeCoracao: $timeCoracao"
+    fi
+  else
+    echo "  resumo: (json invalido)"
+    cat "$file"
+  fi
+}
+
+print_json() {
+  local file="$1"
+  if jq -e . >/dev/null 2>&1 < "$file"; then
+    jq . "$file"
+  else
+    cat "$file"
+  fi
 }
 
 if [ -z "$GW_URL" ]; then
@@ -90,6 +123,12 @@ for e in "${endpoints[@]}"; do
       echo "$e -> $code (error=$err)"
     else
       echo "$e -> $code"
+    fi
+    if [ "$SMOKE_SUMMARY" = "1" ]; then
+      print_summary "$resp_file"
+    fi
+    if [ "$SMOKE_SHOW_JSON" = "1" ]; then
+      print_json "$resp_file"
     fi
     rm -f "$resp_file"
     if [ "$code" = "401" ] && [ "$refreshed" -eq 0 ]; then

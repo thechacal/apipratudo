@@ -37,6 +37,24 @@ curl -s -H "X-Api-Key: $API_KEY" \
   http://localhost:8080/v1/megasena/resultado-oficial | jq
 ```
 
+## Smoke test Cloud Run
+```bash
+make smoke-cloud
+```
+
+```bash
+make smoke-cloud-summary
+```
+
+```bash
+make smoke-cloud-json
+```
+
+```bash
+ADMIN_TOKEN=... make smoke-cloud
+API_KEY=... make smoke-cloud
+```
+
 ## Arquitetura
 - docs/architecture.md
 - docs/diagrams/README.md
