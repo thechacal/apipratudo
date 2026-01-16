@@ -7,6 +7,18 @@ QUOTA_URL="${QUOTA_URL:-}"
 API_KEY="${API_KEY:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
+TOKENS_FILE="/tmp/apipratudo-cloud/tokens.env"
+API_KEY_FILE="/tmp/apipratudo-cloud/api_key"
+
+if [ -z "$API_KEY" ] && [ -z "$ADMIN_TOKEN" ] && [ -f "$TOKENS_FILE" ]; then
+  # shellcheck source=/dev/null
+  source "$TOKENS_FILE"
+fi
+
+if [ -z "$API_KEY" ] && [ -f "$API_KEY_FILE" ]; then
+  API_KEY=$(tr -d '\n' < "$API_KEY_FILE")
+fi
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "Comando obrigatorio nao encontrado: $1" >&2
