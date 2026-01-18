@@ -45,6 +45,15 @@ public class ApiExceptionHandler {
     return error(HttpStatus.TOO_MANY_REQUESTS, ex.getError(), ex.getMessage(), ex);
   }
 
+  @ExceptionHandler(QuotaServiceException.class)
+  public ResponseEntity<ErrorResponse> handleQuotaService(QuotaServiceException ex) {
+    HttpStatus status = HttpStatus.resolve(ex.getStatusCode());
+    if (status == null) {
+      status = HttpStatus.BAD_GATEWAY;
+    }
+    return error(status, ex.getError(), ex.getMessage(), ex);
+  }
+
   @ExceptionHandler(IllegalArgumentException.class)
   public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException ex) {
     return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), ex);

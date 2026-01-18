@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -31,6 +33,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class KeysControllerTest {
 
   private static MockWebServer portalServer;
+  private static final AtomicInteger requestStatus = new AtomicInteger(201);
+  private static final AtomicReference<String> requestBody = new AtomicReference<>(
+      "{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200}}\n");
 
   @Autowired
   private MockMvc mockMvc;
@@ -47,9 +52,9 @@ class KeysControllerTest {
         public MockResponse dispatch(RecordedRequest request) {
           if ("POST".equals(request.getMethod()) && "/v1/keys/request".equals(request.getPath())) {
             return new MockResponse()
-                .setResponseCode(201)
+                .setResponseCode(requestStatus.get())
                 .setHeader("Content-Type", "application/json")
-                .setBody("{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200}}\n");
+                .setBody(requestBody.get());
           }
           if ("GET".equals(request.getMethod()) && "/v1/keys/status".equals(request.getPath())) {
             return new MockResponse()
@@ -79,6 +84,9 @@ class KeysControllerTest {
 
   @Test
   void requestKeyIsPublic() throws Exception {
+    requestStatus.set(201);
+    requestBody.set("{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,"
+        + "\"requestsPerDay\":200}}\n");
     String body = objectMapper.writeValueAsString(Map.of(
         "email", "teste@example.com",
         "org", "Acme",
@@ -95,6 +103,24 @@ class KeysControllerTest {
     assertThat(request).isNotNull();
     assertThat(request.getPath()).isEqualTo("/v1/keys/request");
     assertThat(request.getMethod()).isEqualTo("POST");
+  }
+
+  @Test
+  void requestKeyMapsPortalFailureToServiceUnavailable() throws Exception {
+    requestStatus.set(401);
+    requestBody.set("{\"error\":\"UNAUTHORIZED\",\"message\":\"Missing or invalid X-Portal-Token\"}");
+
+    String body = objectMapper.writeValueAsString(Map.of(
+        "email", "teste@example.com",
+        "org", "Acme",
+        "useCase", "tests"
+    ));
+
+    mockMvc.perform(post("/v1/keys/request")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
+        .andExpect(status().isServiceUnavailable())
+        .andExpect(jsonPath("$.error").value("PORTAL_UNAVAILABLE"));
   }
 
   @Test
