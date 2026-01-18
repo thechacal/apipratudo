@@ -493,10 +493,7 @@ public class BillingService {
 
   private boolean isFormWebhook(String contentType, String signature) {
     String normalized = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
-    if (normalized.contains("application/x-www-form-urlencoded")) {
-      return true;
-    }
-    return !StringUtils.hasText(signature);
+    return normalized.contains("application/x-www-form-urlencoded");
   }
 
   private boolean verifySignature(byte[] rawBody, String receivedSignature) {
