@@ -1,6 +1,5 @@
 package com.apipratudo.quota.security;
 
-import com.apipratudo.quota.config.SecurityProperties;
 import com.apipratudo.quota.error.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -18,14 +17,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class ServiceTokenFilter extends OncePerRequestFilter {
 
-  private static final String ADMIN_HEADER = "X-Admin-Token";
-  private static final String INTERNAL_HEADER = "X-Internal-Token";
+  private static final String API_KEY_HEADER = "X-Api-Key";
 
-  private final SecurityProperties properties;
+  private final SecurityTokenService tokenService;
   private final ObjectMapper objectMapper;
 
-  public ServiceTokenFilter(SecurityProperties properties, ObjectMapper objectMapper) {
-    this.properties = properties;
+  public ServiceTokenFilter(SecurityTokenService tokenService, ObjectMapper objectMapper) {
+    this.tokenService = tokenService;
     this.objectMapper = objectMapper;
   }
 
@@ -50,34 +48,33 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
 
     if (path.startsWith("/v1/quota/")) {
       if (path.equals("/v1/quota/status")) {
-        if (!matchesAdmin(request) && !matchesInternal(request)) {
-          unauthorized(response, "Missing or invalid X-Admin-Token or X-Internal-Token");
+        if (!tokenService.isAdmin(request) && !tokenService.isInternal(request)
+            && !StringUtils.hasText(request.getHeader(API_KEY_HEADER))) {
+          unauthorized(response, "Missing or invalid X-Api-Key or admin/internal token");
           return;
         }
-      } else if (!matchesInternal(request)) {
+      } else if (!tokenService.isInternal(request)) {
         unauthorized(response, "Missing or invalid X-Internal-Token");
         return;
       }
     } else if (path.startsWith("/v1/api-keys")) {
-      if (!matchesAdmin(request)) {
+      if (!tokenService.isAdmin(request)) {
         unauthorized(response, "Missing or invalid X-Admin-Token");
+        return;
+      }
+    } else if (path.startsWith("/v1/internal/keys")) {
+      if (!tokenService.isPortal(request) && !tokenService.isInternal(request)) {
+        unauthorized(response, "Missing or invalid X-Portal-Token");
+        return;
+      }
+    } else if (path.startsWith("/v1/subscriptions/")) {
+      if (!tokenService.isAdmin(request) && !tokenService.isInternal(request)) {
+        unauthorized(response, "Missing or invalid X-Admin-Token or X-Internal-Token");
         return;
       }
     }
 
     filterChain.doFilter(request, response);
-  }
-
-  private boolean matchesAdmin(HttpServletRequest request) {
-    return matchesToken(request.getHeader(ADMIN_HEADER), properties.getAdminToken());
-  }
-
-  private boolean matchesInternal(HttpServletRequest request) {
-    return matchesToken(request.getHeader(INTERNAL_HEADER), properties.getInternalToken());
-  }
-
-  private boolean matchesToken(String value, String expected) {
-    return StringUtils.hasText(value) && StringUtils.hasText(expected) && value.equals(expected);
   }
 
   private void unauthorized(HttpServletResponse response, String message) throws IOException {

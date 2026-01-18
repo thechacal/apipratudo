@@ -47,7 +47,7 @@ class OpenApiDocsTest {
 
     Map<String, Object> components = map(spec.get("components"));
     Map<String, Object> securitySchemes = map(components.get("securitySchemes"));
-    assertThat(securitySchemes).containsKeys("AdminToken", "InternalToken");
+    assertThat(securitySchemes).containsKeys("AdminToken", "InternalToken", "PortalToken", "ApiKeyAuth");
 
     Map<String, Object> paths = map(spec.get("paths"));
     Map<String, Object> apiKeys = map(paths.get("/v1/api-keys"));
@@ -60,6 +60,10 @@ class OpenApiDocsTest {
     List<Map<String, Object>> security = list(map(statusOp.get("get")).get("security"));
     assertThat(security).anyMatch(item -> item.containsKey("AdminToken"));
     assertThat(security).anyMatch(item -> item.containsKey("InternalToken"));
+    assertThat(security).anyMatch(item -> item.containsKey("ApiKeyAuth"));
+
+    Map<String, Object> createFree = map(paths.get("/v1/internal/keys/create-free"));
+    assertSecurityRequirement(createFree.get("post"), "PortalToken");
   }
 
   @SuppressWarnings("unchecked")

@@ -9,11 +9,12 @@ import com.apipratudo.quota.model.QuotaRefundDecision;
 import com.apipratudo.quota.model.QuotaStatus;
 import com.apipratudo.quota.model.QuotaWindow;
 import com.apipratudo.quota.model.QuotaWindowStatus;
-import com.apipratudo.quota.model.QuotaWindowType;
 import com.apipratudo.quota.model.QuotaWindows;
 import com.google.cloud.firestore.Firestore;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -25,12 +26,13 @@ public class InMemoryQuotaStore implements QuotaStore {
 
   private final Clock clock;
   private final QuotaProperties properties;
-  private final ConcurrentMap<String, WindowState> windows = new ConcurrentHashMap<>();
+  private final ApiKeyRepository apiKeyRepository;
   private final ConcurrentMap<String, LedgerEntry> ledger = new ConcurrentHashMap<>();
 
-  public InMemoryQuotaStore(Clock clock, QuotaProperties properties) {
+  public InMemoryQuotaStore(Clock clock, QuotaProperties properties, ApiKeyRepository apiKeyRepository) {
     this.clock = clock;
     this.properties = properties;
+    this.apiKeyRepository = apiKeyRepository;
   }
 
   @Override
@@ -54,25 +56,43 @@ public class InMemoryQuotaStore implements QuotaStore {
     ApiKeyLimits limits = apiKey.limits();
     QuotaWindow minuteWindow = windowsSnapshot.minute();
     QuotaWindow dayWindow = windowsSnapshot.day();
-    WindowDecision minute = evaluateWindow(apiKey.id(), minuteWindow, limits.requestsPerMinute(), cost);
-    WindowDecision day = evaluateWindow(apiKey.id(), dayWindow, limits.requestsPerDay(), cost);
+
+    UsageState usage = currentUsage(apiKey, minuteWindow, dayWindow);
+
+    WindowDecision minute = evaluateWindow(minuteWindow, limits.requestsPerMinute(), usage.minuteCount(), cost);
+    WindowDecision day = evaluateWindow(dayWindow, limits.requestsPerDay(), usage.dayCount(), cost);
 
     QuotaDecision decision;
     boolean consumed;
     if (minute.exceeded() || day.exceeded()) {
       WindowDecision exceeded = chooseExceeded(minute, day);
-      decision = new QuotaDecision(false, QuotaReason.RATE_LIMITED, exceeded.limit(), 0, exceeded.resetAt());
+      decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, exceeded.limit(), 0, exceeded.resetAt());
       consumed = false;
     } else {
-      windows.put(minute.windowKey(), new WindowState(minute.newCount(), minute.windowStart()));
-      windows.put(day.windowKey(), new WindowState(day.newCount(), day.windowStart()));
       WindowDecision selected = chooseMostRestrictive(minute, day);
       decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
       consumed = true;
+      ApiKey updated = new ApiKey(
+          apiKey.id(),
+          apiKey.apiKeyHash(),
+          apiKey.name(),
+          apiKey.owner(),
+          apiKey.ownerEmail(),
+          apiKey.orgName(),
+          apiKey.limits(),
+          apiKey.createdAt(),
+          apiKey.status(),
+          apiKey.plan(),
+          usage.minuteBucket(),
+          minute.newCount(),
+          usage.dayBucket(),
+          day.newCount()
+      );
+      apiKeyRepository.save(updated);
     }
 
     Instant expiresAt = now.plusSeconds(properties.getIdempotencyTtlSeconds());
-    ledger.put(idempotencyKey, new LedgerEntry(decision, expiresAt, minute.windowStart(), day.windowStart(), cost,
+    ledger.put(idempotencyKey, new LedgerEntry(decision, expiresAt, usage.minuteBucket(), usage.dayBucket(), cost,
         consumed, false));
     return decision;
   }
@@ -94,8 +114,11 @@ public class InMemoryQuotaStore implements QuotaStore {
           entry.decision().remaining(), entry.decision().resetAt());
     }
 
-    decrementWindow(apiKey.id(), QuotaWindowType.MINUTE, entry.minuteWindowStart(), entry.cost());
-    decrementWindow(apiKey.id(), QuotaWindowType.DAY, entry.dayWindowStart(), entry.cost());
+    ApiKey updated = updateUsageForRefund(apiKey, entry);
+    if (updated != null) {
+      apiKeyRepository.save(updated);
+    }
+
     LedgerEntry refunded = entry.withRefunded();
     ledger.put(idempotencyKey, refunded);
     return new QuotaRefundDecision(true, null, null, null, null);
@@ -105,44 +128,76 @@ public class InMemoryQuotaStore implements QuotaStore {
   public synchronized QuotaStatus status(ApiKey apiKey, QuotaWindows windowsSnapshot) {
     ApiKeyLimits limits = apiKey.limits();
 
-    QuotaWindowStatus minute = readWindow(apiKey.id(), windowsSnapshot.minute(), limits.requestsPerMinute());
-    QuotaWindowStatus day = readWindow(apiKey.id(), windowsSnapshot.day(), limits.requestsPerDay());
+    QuotaWindow minuteWindow = windowsSnapshot.minute();
+    QuotaWindow dayWindow = windowsSnapshot.day();
+
+    UsageState usage = currentUsage(apiKey, minuteWindow, dayWindow);
+
+    QuotaWindowStatus minute = new QuotaWindowStatus(
+        limits.requestsPerMinute(),
+        usage.minuteCount(),
+        Math.max(limits.requestsPerMinute() - usage.minuteCount(), 0),
+        minuteWindow.resetAt()
+    );
+    QuotaWindowStatus day = new QuotaWindowStatus(
+        limits.requestsPerDay(),
+        usage.dayCount(),
+        Math.max(limits.requestsPerDay() - usage.dayCount(), 0),
+        dayWindow.resetAt()
+    );
     return new QuotaStatus(minute, day);
   }
 
-  private void decrementWindow(String apiKeyId, QuotaWindowType type, Instant windowStart, int cost) {
-    String key = windowKey(apiKeyId, type, windowStart);
-    WindowState state = windows.get(key);
-    if (state == null) {
-      return;
+  private UsageState currentUsage(ApiKey apiKey, QuotaWindow minuteWindow, QuotaWindow dayWindow) {
+    Instant minuteBucket = minuteWindow.windowStart();
+    String dayBucket = dayBucket(dayWindow.windowStart());
+    long minuteCount = matchesBucket(apiKey.minuteBucket(), minuteBucket) ? apiKey.minuteCount() : 0;
+    long dayCount = dayBucket.equals(apiKey.dayBucket()) ? apiKey.dayCount() : 0;
+    return new UsageState(minuteBucket, minuteCount, dayBucket, dayCount);
+  }
+
+  private ApiKey updateUsageForRefund(ApiKey apiKey, LedgerEntry entry) {
+    long minuteCount = apiKey.minuteCount();
+    long dayCount = apiKey.dayCount();
+    boolean updated = false;
+
+    if (matchesBucket(apiKey.minuteBucket(), entry.minuteBucket())) {
+      minuteCount = Math.max(minuteCount - entry.cost(), 0);
+      updated = true;
     }
-    long newCount = Math.max(state.count() - cost, 0);
-    windows.put(key, new WindowState(newCount, state.windowStart()));
+    if (entry.dayBucket() != null && entry.dayBucket().equals(apiKey.dayBucket())) {
+      dayCount = Math.max(dayCount - entry.cost(), 0);
+      updated = true;
+    }
+
+    if (!updated) {
+      return null;
+    }
+
+    return new ApiKey(
+        apiKey.id(),
+        apiKey.apiKeyHash(),
+        apiKey.name(),
+        apiKey.owner(),
+        apiKey.ownerEmail(),
+        apiKey.orgName(),
+        apiKey.limits(),
+        apiKey.createdAt(),
+        apiKey.status(),
+        apiKey.plan(),
+        apiKey.minuteBucket(),
+        minuteCount,
+        apiKey.dayBucket(),
+        dayCount
+    );
   }
 
-  private QuotaWindowStatus readWindow(String apiKeyId, QuotaWindow window, long limit) {
-    String key = windowKey(apiKeyId, window);
-    WindowState state = windows.get(key);
-    long used = state == null ? 0 : state.count();
-    long remaining = Math.max(limit - used, 0);
-    return new QuotaWindowStatus(limit, used, remaining, window.resetAt());
-  }
-
-  private WindowDecision evaluateWindow(
-      String apiKeyId,
-      QuotaWindow window,
-      long limit,
-      int cost
-  ) {
-    String key = windowKey(apiKeyId, window);
-    WindowState state = windows.get(key);
-    long current = state == null ? 0 : state.count();
+  private WindowDecision evaluateWindow(QuotaWindow window, long limit, long current, int cost) {
     long newCount = current + cost;
     long remaining = Math.max(limit - newCount, 0);
     long overage = Math.max(newCount - limit, 0);
     boolean exceeded = newCount > limit;
-    return new WindowDecision(key, window.windowStart(), limit, current, newCount, remaining, overage,
-        window.resetAt(), exceeded);
+    return new WindowDecision(limit, newCount, remaining, overage, window.resetAt(), exceeded);
   }
 
   private WindowDecision chooseMostRestrictive(WindowDecision first, WindowDecision second) {
@@ -171,46 +226,51 @@ public class InMemoryQuotaStore implements QuotaStore {
     return first.resetAt().isBefore(second.resetAt()) ? first : second;
   }
 
-  private String windowKey(String apiKeyId, QuotaWindow window) {
-    return windowKey(apiKeyId, window.type(), window.windowStart());
+  private boolean matchesBucket(Instant current, Instant target) {
+    if (current == null || target == null) {
+      return false;
+    }
+    return current.equals(target);
   }
 
-  private String windowKey(String apiKeyId, QuotaWindowType type, Instant windowStart) {
-    return apiKeyId + ":" + type.name() + ":" + windowStart.toEpochMilli();
+  private String dayBucket(Instant dayWindowStart) {
+    return LocalDate.ofInstant(dayWindowStart, ZoneOffset.UTC).toString();
   }
 
   private String idempotencyKey(String apiKeyId, String requestId) {
     return apiKeyId + ":" + requestId;
   }
 
-  private record WindowState(long count, Instant windowStart) {
-  }
-
   private record LedgerEntry(
       QuotaDecision decision,
       Instant expiresAt,
-      Instant minuteWindowStart,
-      Instant dayWindowStart,
+      Instant minuteBucket,
+      String dayBucket,
       int cost,
       boolean consumed,
       boolean refunded
   ) {
 
     LedgerEntry withRefunded() {
-      return new LedgerEntry(decision, expiresAt, minuteWindowStart, dayWindowStart, cost, consumed, true);
+      return new LedgerEntry(decision, expiresAt, minuteBucket, dayBucket, cost, consumed, true);
     }
   }
 
   private record WindowDecision(
-      String windowKey,
-      Instant windowStart,
       long limit,
-      long current,
       long newCount,
       long remaining,
       long overage,
       Instant resetAt,
       boolean exceeded
+  ) {
+  }
+
+  private record UsageState(
+      Instant minuteBucket,
+      long minuteCount,
+      String dayBucket,
+      long dayCount
   ) {
   }
 }

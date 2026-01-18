@@ -7,6 +7,9 @@ public record QuotaConsumeResponse(
     String reason,
     Long limit,
     Long remaining,
-    Instant resetAt
+    Instant resetAt,
+    String error,
+    String message,
+    String plan
 ) {
 }

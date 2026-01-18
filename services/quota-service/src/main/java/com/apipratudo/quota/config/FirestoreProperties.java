@@ -43,6 +43,7 @@ public class FirestoreProperties {
     private String apiKeys = "api_keys";
     private String quotaWindows = "quota_windows";
     private String idempotencyQuota = "idempotency_quota";
+    private String keyCreationLimits = "key_creation_limits";
 
     public String getApiKeys() {
       return apiKeys;
@@ -66,6 +67,14 @@ public class FirestoreProperties {
 
     public void setIdempotencyQuota(String idempotencyQuota) {
       this.idempotencyQuota = idempotencyQuota;
+    }
+
+    public String getKeyCreationLimits() {
+      return keyCreationLimits;
+    }
+
+    public void setKeyCreationLimits(String keyCreationLimits) {
+      this.keyCreationLimits = keyCreationLimits;
     }
   }
 }

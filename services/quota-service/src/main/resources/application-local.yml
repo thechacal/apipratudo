@@ -4,3 +4,4 @@ app:
   security:
     admin-token: dev-admin
     internal-token: dev-internal
+    portal-token: dev-portal

@@ -1,0 +1,47 @@
+server:
+  port: ${PORT:8094}
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+    collections:
+      key-requests: ${APP_KEY_REQUESTS_COLLECTION:${KEY_REQUESTS_COLLECTION:key_requests}}
+  quota:
+    base-url: ${QUOTA_BASE_URL:http://localhost:8081}
+    portal-token: ${PORTAL_TOKEN:}
+    timeout-ms: ${QUOTA_TIMEOUT_MS:3000}
+  billing:
+    base-url: ${BILLING_BASE_URL:http://localhost:8095}
+    service-token: ${BILLING_SERVICE_TOKEN:}
+    timeout-ms: ${BILLING_TIMEOUT_MS:3000}
+    premium-price-cents: ${PREMIUM_PRICE_CENTS:4900}
+  gateway:
+    url: ${GATEWAY_URL:http://localhost:8080}
+    docs-url: ${DOCS_URL:http://localhost:8080/docs}
+  rate-limit:
+    ip:
+      requests-per-minute: ${APP_RATE_LIMIT_IP_RPM:10}
+    email:
+      max-per-day: ${APP_RATE_LIMIT_EMAIL_PER_DAY:1}
+    org:
+      max-per-day: ${APP_RATE_LIMIT_ORG_PER_DAY:3}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true

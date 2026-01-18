@@ -1,18 +1,11 @@
 package com.apipratudo.quota.dto;
 
-import java.time.Instant;
+import com.apipratudo.quota.model.Plan;
 
 public record QuotaStatusResponse(
     String apiKeyId,
-    QuotaWindowStatus minute,
-    QuotaWindowStatus day
+    Plan plan,
+    ApiKeyLimits limits,
+    QuotaUsage usage
 ) {
-
-  public record QuotaWindowStatus(
-      long limit,
-      long used,
-      long remaining,
-      Instant resetAt
-  ) {
-  }
 }

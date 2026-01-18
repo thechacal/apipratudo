@@ -47,8 +47,8 @@ class QuotaRefundTest {
         .andExpect(jsonPath("$.refunded").value(true));
 
     JsonNode status = quotaStatus(apiKey);
-    assertThat(status.get("minute").get("used").asLong()).isEqualTo(0);
-    assertThat(status.get("day").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("usage").get("minute").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("usage").get("day").get("used").asLong()).isEqualTo(0);
   }
 
   @Test
@@ -61,8 +61,8 @@ class QuotaRefundTest {
         .andExpect(jsonPath("$.refunded").value(false));
 
     JsonNode status = quotaStatus(apiKey);
-    assertThat(status.get("minute").get("used").asLong()).isEqualTo(0);
-    assertThat(status.get("day").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("usage").get("minute").get("used").asLong()).isEqualTo(0);
+    assertThat(status.get("usage").get("day").get("used").asLong()).isEqualTo(0);
   }
 
   private String createApiKey(int requestsPerMinute, int requestsPerDay) throws Exception {
@@ -114,8 +114,7 @@ class QuotaRefundTest {
 
   private JsonNode quotaStatus(String apiKey) throws Exception {
     MvcResult result = mockMvc.perform(get("/v1/quota/status")
-            .param("apiKey", apiKey)
-            .header("X-Internal-Token", "test-internal"))
+            .header("X-Api-Key", apiKey))
         .andExpect(status().isOk())
         .andReturn();
 

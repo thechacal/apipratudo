@@ -6,6 +6,7 @@ import com.apipratudo.quota.dto.QuotaReason;
 import com.apipratudo.quota.dto.QuotaRefundRequest;
 import com.apipratudo.quota.dto.QuotaRefundResponse;
 import com.apipratudo.quota.dto.QuotaStatusResponse;
+import com.apipratudo.quota.dto.QuotaUsage;
 import com.apipratudo.quota.error.ResourceNotFoundException;
 import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.ApiKeyStatus;
@@ -40,21 +41,65 @@ public class QuotaService {
     int cost = request.cost() == null ? 1 : request.cost();
     Optional<ApiKey> apiKey = findActiveApiKey(request.apiKey());
     if (apiKey.isEmpty()) {
-      QuotaConsumeResponse response = new QuotaConsumeResponse(false, QuotaReason.INVALID_KEY, null, null, null);
+      QuotaConsumeResponse response = new QuotaConsumeResponse(false, QuotaReason.INVALID_KEY, null, null, null,
+          null, null, null, null, null, null);
       return new QuotaConsumeResult(HttpStatus.UNAUTHORIZED, response);
     }
 
+    ApiKey model = apiKey.get();
     QuotaWindows windows = windowCalculator.currentWindows();
-    QuotaDecision decision = quotaStore.consume(apiKey.get(), request.requestId(), request.route(), cost, windows);
-    HttpStatus status = decision.allowed() ? HttpStatus.OK : HttpStatus.TOO_MANY_REQUESTS;
+    QuotaDecision decision = quotaStore.consume(model, request.requestId(), request.route(), cost, windows);
+
+    if (decision.allowed()) {
+      QuotaConsumeResponse response = new QuotaConsumeResponse(
+          true,
+          null,
+          decision.limit(),
+          decision.remaining(),
+          decision.resetAt(),
+          null,
+          null,
+          model.plan(),
+          model.limits(),
+          null,
+          null
+      );
+      return new QuotaConsumeResult(HttpStatus.OK, response);
+    }
+
+    if (decision.reason() == QuotaReason.QUOTA_EXCEEDED) {
+      QuotaStatus status = quotaStore.status(model, windows);
+      QuotaUsage usage = toUsage(status);
+      QuotaConsumeResponse response = new QuotaConsumeResponse(
+          false,
+          decision.reason(),
+          decision.limit(),
+          decision.remaining(),
+          decision.resetAt(),
+          "QUOTA_EXCEEDED",
+          "Você consumiu todo o seu pacote. Assine o Premium.",
+          model.plan(),
+          model.limits(),
+          usage,
+          new QuotaConsumeResponse.UpgradeHint("/v1/keys/upgrade", "POST")
+      );
+      return new QuotaConsumeResult(HttpStatus.PAYMENT_REQUIRED, response);
+    }
+
     QuotaConsumeResponse response = new QuotaConsumeResponse(
-        decision.allowed(),
+        false,
         decision.reason(),
         decision.limit(),
         decision.remaining(),
-        decision.resetAt()
+        decision.resetAt(),
+        null,
+        null,
+        model.plan(),
+        model.limits(),
+        null,
+        null
     );
-    return new QuotaConsumeResult(status, response);
+    return new QuotaConsumeResult(HttpStatus.TOO_MANY_REQUESTS, response);
   }
 
   public QuotaRefundResult refund(QuotaRefundRequest request) {
@@ -85,13 +130,21 @@ public class QuotaService {
     QuotaStatus status = quotaStore.status(apiKey.get(), windows);
     return new QuotaStatusResponse(
         apiKey.get().id(),
-        new QuotaStatusResponse.QuotaWindowStatus(
+        apiKey.get().plan(),
+        apiKey.get().limits(),
+        toUsage(status)
+    );
+  }
+
+  private QuotaUsage toUsage(QuotaStatus status) {
+    return new QuotaUsage(
+        new QuotaUsage.WindowStatus(
             status.minute().limit(),
             status.minute().used(),
             status.minute().remaining(),
             status.minute().resetAt()
         ),
-        new QuotaStatusResponse.QuotaWindowStatus(
+        new QuotaUsage.WindowStatus(
             status.day().limit(),
             status.day().used(),
             status.day().remaining(),

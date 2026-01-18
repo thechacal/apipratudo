@@ -3,6 +3,7 @@ package com.apipratudo.quota.config;
 import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.ApiKeyStatus;
+import com.apipratudo.quota.model.Plan;
 import com.apipratudo.quota.repository.ApiKeyRepository;
 import com.apipratudo.quota.service.HashingUtils;
 import java.time.Clock;
@@ -50,9 +51,16 @@ public class LocalApiKeySeeder {
           hash,
           seed.name(),
           seed.owner(),
+          null,
+          seed.owner(),
           limits,
           now,
-          ApiKeyStatus.ACTIVE
+          ApiKeyStatus.ACTIVE,
+          Plan.FREE,
+          null,
+          0,
+          null,
+          0
       );
       repository.save(model);
       log.info("Seeded local api key name={} owner={}", seed.name(), seed.owner());

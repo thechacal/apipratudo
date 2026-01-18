@@ -50,13 +50,13 @@ class ApiKeyAdminOperationsTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.allowed").value(true));
 
-    String statusBody = objectMapper.writeValueAsString(Map.of("status", "DISABLED"));
+    String statusBody = objectMapper.writeValueAsString(Map.of("status", "SUSPENDED"));
     mockMvc.perform(patch("/v1/api-keys/{id}/status", record.id())
             .header("X-Admin-Token", "test-admin")
             .contentType(MediaType.APPLICATION_JSON)
             .content(statusBody))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("DISABLED"));
+        .andExpect(jsonPath("$.status").value("SUSPENDED"));
 
     consume(newKey)
         .andExpect(status().isUnauthorized())

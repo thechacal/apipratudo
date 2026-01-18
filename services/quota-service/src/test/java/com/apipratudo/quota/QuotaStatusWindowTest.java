@@ -47,8 +47,8 @@ class QuotaStatusWindowTest {
     }
 
     JsonNode status = quotaStatus(apiKey);
-    JsonNode minute = status.get("minute");
-    JsonNode day = status.get("day");
+    JsonNode minute = status.get("usage").get("minute");
+    JsonNode day = status.get("usage").get("day");
 
     assertThat(minute.get("used").asLong()).isEqualTo(5);
     assertThat(minute.get("remaining").asLong()).isEqualTo(0);
@@ -97,8 +97,7 @@ class QuotaStatusWindowTest {
 
   private JsonNode quotaStatus(String apiKey) throws Exception {
     MvcResult result = mockMvc.perform(get("/v1/quota/status")
-            .param("apiKey", apiKey)
-            .header("X-Internal-Token", "test-internal"))
+            .header("X-Api-Key", apiKey))
         .andExpect(status().isOk())
         .andReturn();
 

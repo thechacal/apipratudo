@@ -1,0 +1,11 @@
+package com.apipratudo.gateway.keys.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public record KeyRequest(
+    @Email @NotBlank String email,
+    @NotBlank String org,
+    String useCase
+) {
+}

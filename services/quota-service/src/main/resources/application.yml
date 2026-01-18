@@ -16,11 +16,23 @@ app:
       api-keys: ${APP_API_KEYS_COLLECTION:${API_KEYS_COLLECTION:api_keys}}
       quota-windows: ${APP_QUOTA_WINDOWS_COLLECTION:${QUOTA_WINDOWS_COLLECTION:quota_windows}}
       idempotency-quota: ${APP_IDEMPOTENCY_QUOTA_COLLECTION:${IDEMPOTENCY_QUOTA_COLLECTION:idempotency_quota}}
+      key-creation-limits: ${APP_KEY_CREATION_LIMITS_COLLECTION:${KEY_CREATION_LIMITS_COLLECTION:key_creation_limits}}
   quota:
     idempotency-ttl-seconds: ${APP_QUOTA_IDEMPOTENCY_TTL_SECONDS:${QUOTA_IDEMPOTENCY_TTL_SECONDS:86400}}
+  plans:
+    free:
+      requests-per-minute: ${APP_PLANS_FREE_REQUESTS_PER_MINUTE:30}
+      requests-per-day: ${APP_PLANS_FREE_REQUESTS_PER_DAY:200}
+    premium:
+      requests-per-minute: ${APP_PLANS_PREMIUM_REQUESTS_PER_MINUTE:600}
+      requests-per-day: ${APP_PLANS_PREMIUM_REQUESTS_PER_DAY:50000}
+  key-creation:
+    max-per-email-per-day: ${APP_KEY_CREATION_MAX_PER_EMAIL_PER_DAY:1}
+    max-per-org-per-day: ${APP_KEY_CREATION_MAX_PER_ORG_PER_DAY:3}
   security:
     admin-token: ${APP_ADMIN_TOKEN:${ADMIN_TOKEN:}}
     internal-token: ${APP_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    portal-token: ${APP_PORTAL_TOKEN:${PORTAL_TOKEN:}}
 
 management:
   endpoints:

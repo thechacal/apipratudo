@@ -8,8 +8,15 @@ public record ApiKey(
     String apiKeyHash,
     String name,
     String owner,
+    String ownerEmail,
+    String orgName,
     ApiKeyLimits limits,
     Instant createdAt,
-    ApiKeyStatus status
+    ApiKeyStatus status,
+    Plan plan,
+    Instant minuteBucket,
+    long minuteCount,
+    String dayBucket,
+    long dayCount
 ) {
 }

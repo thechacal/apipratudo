@@ -47,7 +47,7 @@ class QuotaControllerTest {
   }
 
   @Test
-  void rateLimitedReturns429() throws Exception {
+  void quotaExceededReturns402() throws Exception {
     String apiKey = createApiKey(1, 1);
 
     consume(apiKey, "req-" + UUID.randomUUID())
@@ -55,9 +55,10 @@ class QuotaControllerTest {
         .andExpect(jsonPath("$.allowed").value(true));
 
     consume(apiKey, "req-" + UUID.randomUUID())
-        .andExpect(status().isTooManyRequests())
+        .andExpect(status().isPaymentRequired())
         .andExpect(jsonPath("$.allowed").value(false))
-        .andExpect(jsonPath("$.reason").value("RATE_LIMITED"));
+        .andExpect(jsonPath("$.reason").value("QUOTA_EXCEEDED"))
+        .andExpect(jsonPath("$.error").value("QUOTA_EXCEEDED"));
   }
 
   @Test
@@ -74,9 +75,10 @@ class QuotaControllerTest {
         .andExpect(jsonPath("$.allowed").value(true));
 
     consume(apiKey, "req-" + UUID.randomUUID())
-        .andExpect(status().isTooManyRequests())
+        .andExpect(status().isPaymentRequired())
         .andExpect(jsonPath("$.allowed").value(false))
-        .andExpect(jsonPath("$.reason").value("RATE_LIMITED"));
+        .andExpect(jsonPath("$.reason").value("QUOTA_EXCEEDED"))
+        .andExpect(jsonPath("$.error").value("QUOTA_EXCEEDED"));
   }
 
   private String createApiKey(int requestsPerMinute, int requestsPerDay) throws Exception {

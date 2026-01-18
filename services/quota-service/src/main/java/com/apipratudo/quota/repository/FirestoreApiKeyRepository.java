@@ -4,6 +4,7 @@ import com.apipratudo.quota.config.FirestoreProperties;
 import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.model.ApiKey;
 import com.apipratudo.quota.model.ApiKeyStatus;
+import com.apipratudo.quota.model.Plan;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
@@ -95,8 +96,15 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     data.put("apiKeyHash", apiKey.apiKeyHash());
     data.put("name", apiKey.name());
     data.put("owner", apiKey.owner());
+    data.put("ownerEmail", apiKey.ownerEmail());
+    data.put("orgName", apiKey.orgName());
     data.put("status", apiKey.status().name());
+    data.put("plan", apiKey.plan() == null ? Plan.FREE.name() : apiKey.plan().name());
     data.put("createdAt", toTimestamp(apiKey.createdAt()));
+    data.put("minuteBucket", toTimestamp(apiKey.minuteBucket()));
+    data.put("minuteCount", apiKey.minuteCount());
+    data.put("dayBucket", apiKey.dayBucket());
+    data.put("dayCount", apiKey.dayCount());
 
     ApiKeyLimits limits = apiKey.limits();
     Map<String, Object> limitsData = new HashMap<>();
@@ -118,7 +126,10 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     String owner = snapshot.getString("owner");
 
     String statusRaw = snapshot.getString("status");
-    ApiKeyStatus status = statusRaw == null ? ApiKeyStatus.ACTIVE : ApiKeyStatus.valueOf(statusRaw);
+    ApiKeyStatus status = statusRaw == null ? ApiKeyStatus.ACTIVE : toStatus(statusRaw);
+
+    String planRaw = snapshot.getString("plan");
+    Plan plan = planRaw == null ? Plan.FREE : Plan.valueOf(planRaw);
 
     Map<String, Object> limitsRaw = snapshot.get("limits", Map.class);
     ApiKeyLimits limits = new ApiKeyLimits(
@@ -127,7 +138,13 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     );
 
     Instant createdAt = toInstant(snapshot.getTimestamp("createdAt"));
-    return new ApiKey(id, apiKeyHash, name, owner, limits, createdAt, status);
+    Instant minuteBucket = toInstant(snapshot.getTimestamp("minuteBucket"));
+    long minuteCount = getLong(snapshot, "minuteCount");
+    String dayBucket = snapshot.getString("dayBucket");
+    long dayCount = getLong(snapshot, "dayCount");
+    return new ApiKey(id, apiKeyHash, name, owner, snapshot.getString("ownerEmail"),
+        snapshot.getString("orgName"), limits, createdAt, status, plan, minuteBucket, minuteCount, dayBucket,
+        dayCount);
   }
 
   private Instant toInstant(Timestamp timestamp) {
@@ -153,5 +170,17 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
       return number.intValue();
     }
     return 0;
+  }
+
+  private long getLong(DocumentSnapshot snapshot, String field) {
+    Long value = snapshot.getLong(field);
+    return value == null ? 0 : value;
+  }
+
+  private ApiKeyStatus toStatus(String statusRaw) {
+    if ("DISABLED".equalsIgnoreCase(statusRaw)) {
+      return ApiKeyStatus.SUSPENDED;
+    }
+    return ApiKeyStatus.valueOf(statusRaw);
   }
 }

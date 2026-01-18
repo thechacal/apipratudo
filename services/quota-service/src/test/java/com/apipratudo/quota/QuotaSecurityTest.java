@@ -61,9 +61,24 @@ class QuotaSecurityTest {
   }
 
   @Test
-  void statusRequiresAdminOrInternalToken() throws Exception {
+  void statusRequiresTokenOrApiKey() throws Exception {
     mockMvc.perform(get("/v1/quota/status")
             .param("apiKey", "any"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  void internalKeyCreationRequiresPortalToken() throws Exception {
+    String body = objectMapper.writeValueAsString(Map.of(
+        "email", "test@example.com",
+        "org", "Acme",
+        "useCase", "tests"
+    ));
+
+    mockMvc.perform(post("/v1/internal/keys/create-free")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
   }

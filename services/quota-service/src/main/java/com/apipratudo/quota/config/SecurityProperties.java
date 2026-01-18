@@ -7,6 +7,7 @@ public class SecurityProperties {
 
   private String adminToken;
   private String internalToken;
+  private String portalToken;
 
   public String getAdminToken() {
     return adminToken;
@@ -22,5 +23,13 @@ public class SecurityProperties {
 
   public void setInternalToken(String internalToken) {
     this.internalToken = internalToken;
+  }
+
+  public String getPortalToken() {
+    return portalToken;
+  }
+
+  public void setPortalToken(String portalToken) {
+    this.portalToken = portalToken;
   }
 }

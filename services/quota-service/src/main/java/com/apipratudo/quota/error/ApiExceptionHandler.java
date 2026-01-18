@@ -48,6 +48,16 @@ public class ApiExceptionHandler {
     return error(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), Collections.emptyList(), ex);
   }
 
+  @ExceptionHandler(KeyCreationLimitException.class)
+  public ResponseEntity<ErrorResponse> handleKeyLimit(KeyCreationLimitException ex) {
+    return error(HttpStatus.TOO_MANY_REQUESTS, "KEY_CREATION_LIMIT", ex.getMessage(), Collections.emptyList(), ex);
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<ErrorResponse> handleBadRequest(IllegalArgumentException ex) {
+    return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), Collections.emptyList(), ex);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
     return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected error", Collections.emptyList(), ex);

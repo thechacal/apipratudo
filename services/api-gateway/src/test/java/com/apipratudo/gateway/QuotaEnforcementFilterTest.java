@@ -113,16 +113,17 @@ class QuotaEnforcementFilterTest {
   }
 
   @Test
-  void rateLimitedReturns429() throws Exception {
+  void quotaExceededReturns402() throws Exception {
     quotaServer.enqueue(new MockResponse()
-        .setResponseCode(429)
+        .setResponseCode(402)
         .setHeader("Content-Type", "application/json")
-        .setBody("{\"allowed\":false,\"reason\":\"RATE_LIMITED\"}"));
+        .setBody("{\"allowed\":false,\"reason\":\"QUOTA_EXCEEDED\",\"error\":\"QUOTA_EXCEEDED\",\"plan\":\"FREE\"}"));
 
     mockMvc.perform(get("/v1/webhooks")
             .header("X-Api-Key", "rate-key"))
-        .andExpect(status().isTooManyRequests())
-        .andExpect(jsonPath("$.error").value("RATE_LIMITED"));
+        .andExpect(status().isPaymentRequired())
+        .andExpect(jsonPath("$.error").value("QUOTA_EXCEEDED"))
+        .andExpect(jsonPath("$.howToUpgrade.requestPix").value("/v1/keys/upgrade"));
   }
 
   @Test

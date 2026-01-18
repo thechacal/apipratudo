@@ -18,5 +18,17 @@ import org.springframework.context.annotation.Configuration;
     in = SecuritySchemeIn.HEADER,
     paramName = "X-Internal-Token"
 )
+@SecurityScheme(
+    name = "PortalToken",
+    type = SecuritySchemeType.APIKEY,
+    in = SecuritySchemeIn.HEADER,
+    paramName = "X-Portal-Token"
+)
+@SecurityScheme(
+    name = "ApiKeyAuth",
+    type = SecuritySchemeType.APIKEY,
+    in = SecuritySchemeIn.HEADER,
+    paramName = "X-Api-Key"
+)
 public class OpenApiSecurityConfig {
 }

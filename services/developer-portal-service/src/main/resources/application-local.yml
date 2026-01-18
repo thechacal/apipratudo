@@ -1,0 +1,9 @@
+app:
+  firestore:
+    enabled: false
+  quota:
+    base-url: http://localhost:8081
+    portal-token: dev-portal
+  billing:
+    base-url: http://localhost:8095
+    service-token: dev-billing-token

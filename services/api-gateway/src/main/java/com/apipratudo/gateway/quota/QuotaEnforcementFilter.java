@@ -26,6 +26,9 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
   private static final String API_KEY_HEADER = "X-Api-Key";
   private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
   private static final String REQUEST_ID_HEADER = "X-Request-Id";
+  private static final String KEYS_REQUEST_PATH = "/v1/keys/request";
+  private static final String KEYS_STATUS_PATH = "/v1/keys/status";
+  private static final String KEYS_UPGRADE_PREFIX = "/v1/keys/upgrade";
 
   private final QuotaClient quotaClient;
   private final ObjectMapper objectMapper;
@@ -44,7 +47,10 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     if (!path.startsWith("/v1")) {
       return true;
     }
-    return "/v1/echo".equals(path);
+    if ("/v1/echo".equals(path)) {
+      return true;
+    }
+    return KEYS_REQUEST_PATH.equals(path);
   }
 
   @Override
@@ -57,6 +63,12 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     if (!StringUtils.hasText(apiKey)) {
       writeError(response, request, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED",
           "Missing X-Api-Key");
+      return;
+    }
+
+    String path = request.getRequestURI();
+    if (isKeysStatus(path) || isKeysUpgrade(path)) {
+      filterChain.doFilter(request, response);
       return;
     }
 
@@ -90,6 +102,11 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       return;
     }
 
+    if (isQuotaExceeded(result)) {
+      writeQuotaExceeded(response, request, result.plan());
+      return;
+    }
+
     if (result.statusCode() == HttpServletResponse.SC_UNAUTHORIZED
         || result.statusCode() == HttpServletResponse.SC_FORBIDDEN) {
       if ("INVALID_KEY".equals(result.reason())) {
@@ -110,6 +127,27 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
 
     writeError(response, request, HttpServletResponse.SC_SERVICE_UNAVAILABLE, "QUOTA_UNAVAILABLE",
         "Quota service rejected the request");
+  }
+
+  private boolean isKeysStatus(String path) {
+    return KEYS_STATUS_PATH.equals(path);
+  }
+
+  private boolean isKeysUpgrade(String path) {
+    return path.startsWith(KEYS_UPGRADE_PREFIX);
+  }
+
+  private boolean isQuotaExceeded(QuotaClientResult result) {
+    if (result == null) {
+      return false;
+    }
+    if (result.statusCode() == HttpServletResponse.SC_PAYMENT_REQUIRED) {
+      return true;
+    }
+    if ("QUOTA_EXCEEDED".equals(result.reason())) {
+      return true;
+    }
+    return "QUOTA_EXCEEDED".equals(result.error());
   }
 
   private void tryRefund(String apiKey, String requestId, String traceId, String route) {
@@ -146,6 +184,25 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       return fallback;
     }
     return fallback + " (" + reason + ")";
+  }
+
+  private void writeQuotaExceeded(
+      HttpServletResponse response,
+      HttpServletRequest request,
+      String plan
+  ) throws IOException {
+    String resolvedPlan = StringUtils.hasText(plan) ? plan : "FREE";
+    String message = "Você consumiu todo o seu pacote " + resolvedPlan + ". Assine o Premium para continuar.";
+    QuotaExceededResponse body = new QuotaExceededResponse(
+        "QUOTA_EXCEEDED",
+        message,
+        new QuotaExceededResponse.HowToUpgrade("/v1/keys/upgrade", "/docs")
+    );
+
+    response.setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
+    objectMapper.writeValue(response.getWriter(), body);
   }
 
   private void writeError(

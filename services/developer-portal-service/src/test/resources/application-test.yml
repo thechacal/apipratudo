@@ -1,0 +1,7 @@
+app:
+  firestore:
+    enabled: false
+  quota:
+    portal-token: test-portal
+  billing:
+    service-token: test-billing
