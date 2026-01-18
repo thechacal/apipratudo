@@ -50,7 +50,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     if ("/v1/echo".equals(path)) {
       return true;
     }
-    return KEYS_REQUEST_PATH.equals(path);
+    return path.startsWith(KEYS_REQUEST_PATH);
   }
 
   @Override
