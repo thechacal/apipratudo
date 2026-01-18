@@ -191,12 +191,11 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       HttpServletRequest request,
       String plan
   ) throws IOException {
-    String resolvedPlan = StringUtils.hasText(plan) ? plan : "FREE";
-    String message = "Você consumiu todo o seu pacote " + resolvedPlan + ". Assine o Premium para continuar.";
+    String message = "Você consumiu todo o seu pacote FREE. Assine o Premium.";
     QuotaExceededResponse body = new QuotaExceededResponse(
         "QUOTA_EXCEEDED",
         message,
-        new QuotaExceededResponse.HowToUpgrade("/v1/keys/upgrade", "/docs")
+        new QuotaExceededResponse.Upgrade("/v1/keys/upgrade", "/docs")
     );
 
     response.setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);

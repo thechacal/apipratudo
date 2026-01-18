@@ -69,9 +69,10 @@ public class KeyService {
       throw new IllegalArgumentException("Only PREMIUM plan is supported");
     }
 
+    String apiKeyHash = HashingUtils.sha256Hex(apiKey);
     BillingChargeRequest chargeRequest = new BillingChargeRequest(
-        apiKey,
         null,
+        apiKeyHash,
         plan.name(),
         billingProperties.getPremiumPriceCents(),
         "Plano PREMIUM apipratudo",

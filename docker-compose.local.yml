@@ -28,6 +28,7 @@ services:
     depends_on:
       - quota-service
       - webhook-service
+      - developer-portal-service
     environment:
       SPRING_PROFILES_ACTIVE: local
       PORT: 8080
@@ -35,3 +36,37 @@ services:
       WEBHOOK_BASE_URL: http://webhook-service:8082
       QUOTA_INTERNAL_TOKEN: dev-internal
       WEBHOOK_SERVICE_TOKEN: dev-service-token
+      PORTAL_BASE_URL: http://developer-portal-service:8094
+
+  billing-service:
+    build:
+      context: ./services/billing-service
+    ports:
+      - "8095:8095"
+    depends_on:
+      - quota-service
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PORT: 8095
+      QUOTA_BASE_URL: http://quota-service:8081
+      QUOTA_INTERNAL_TOKEN: dev-internal
+      BILLING_SERVICE_TOKEN: dev-billing-token
+      WEBHOOK_SECRET: dev-webhook-secret
+      PAGBANK_TOKEN: dev-pagbank-token
+      PAGBANK_WEBHOOK_TOKEN: dev-pagbank-webhook
+
+  developer-portal-service:
+    build:
+      context: ./services/developer-portal-service
+    ports:
+      - "8094:8094"
+    depends_on:
+      - quota-service
+      - billing-service
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PORT: 8094
+      QUOTA_BASE_URL: http://quota-service:8081
+      PORTAL_TOKEN: dev-portal
+      BILLING_BASE_URL: http://billing-service:8095
+      BILLING_SERVICE_TOKEN: dev-billing-token

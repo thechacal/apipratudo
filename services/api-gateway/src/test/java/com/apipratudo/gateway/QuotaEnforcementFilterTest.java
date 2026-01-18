@@ -123,7 +123,9 @@ class QuotaEnforcementFilterTest {
             .header("X-Api-Key", "rate-key"))
         .andExpect(status().isPaymentRequired())
         .andExpect(jsonPath("$.error").value("QUOTA_EXCEEDED"))
-        .andExpect(jsonPath("$.howToUpgrade.requestPix").value("/v1/keys/upgrade"));
+        .andExpect(jsonPath("$.message").value("Você consumiu todo o seu pacote FREE. Assine o Premium."))
+        .andExpect(jsonPath("$.upgrade.endpoint").value("/v1/keys/upgrade"))
+        .andExpect(jsonPath("$.upgrade.docs").value("/docs"));
   }
 
   @Test
