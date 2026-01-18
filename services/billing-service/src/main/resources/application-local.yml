@@ -1,0 +1,13 @@
+app:
+  firestore:
+    enabled: false
+  security:
+    service-token: dev-billing-token
+  webhook:
+    secret: dev-webhook-secret
+  pagbank:
+    token: dev-pagbank-token
+    webhook-token: dev-pagbank-webhook
+  quota:
+    base-url: http://localhost:8081
+    internal-token: dev-internal

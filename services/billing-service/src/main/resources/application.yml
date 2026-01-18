@@ -1,0 +1,62 @@
+server:
+  port: ${PORT:8095}
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+    collections:
+      charges: ${APP_BILLING_CHARGES_COLLECTION:${BILLING_CHARGES_COLLECTION:billing_charges}}
+      webhook-events: ${APP_BILLING_WEBHOOK_EVENTS_COLLECTION:${BILLING_WEBHOOK_EVENTS_COLLECTION:billing_webhook_events}}
+      webhook-invalid: ${APP_BILLING_WEBHOOK_INVALID_COLLECTION:${BILLING_WEBHOOK_INVALID_COLLECTION:billing_webhook_invalid}}
+      webhook-form: ${APP_BILLING_WEBHOOK_FORM_COLLECTION:${BILLING_WEBHOOK_FORM_COLLECTION:billing_webhook_form}}
+  pagbank:
+    base-url: ${PAGBANK_BASE_URL:https://sandbox.api.pagseguro.com}
+    token: ${PAGBANK_TOKEN:}
+    webhook-token: ${PAGBANK_WEBHOOK_TOKEN:}
+    notification-url: ${PAGBANK_NOTIFICATION_URL:}
+    qr-ttl-seconds: ${PAGBANK_QR_TTL_SECONDS:300}
+    timezone: ${PAGBANK_TZ:America/Sao_Paulo}
+    webhook-strict: ${PAGBANK_WEBHOOK_STRICT:true}
+    timeout-ms: ${PAGBANK_TIMEOUT_MS:60000}
+    customer:
+      name: ${PAGBANK_CUSTOMER_NAME:Cliente}
+      email: ${PAGBANK_CUSTOMER_EMAIL:cliente@exemplo.com}
+      tax-id: ${PAGBANK_CUSTOMER_TAX_ID:12345678909}
+      phone-area: ${PAGBANK_CUSTOMER_PHONE_AREA:11}
+      phone-number: ${PAGBANK_CUSTOMER_PHONE_NUMBER:999999999}
+    shipping:
+      postal-code: ${PAGBANK_SHIP_POSTAL_CODE:}
+      street: ${PAGBANK_SHIP_STREET:Rua Exemplo}
+      number: ${PAGBANK_SHIP_NUMBER:100}
+      locality: ${PAGBANK_SHIP_LOCALITY:Centro}
+      city: ${PAGBANK_SHIP_CITY:Sao Paulo}
+      region: ${PAGBANK_SHIP_REGION:SP}
+      country: ${PAGBANK_SHIP_COUNTRY:BRA}
+  quota:
+    base-url: ${QUOTA_BASE_URL:http://localhost:8081}
+    internal-token: ${QUOTA_INTERNAL_TOKEN:}
+    timeout-ms: ${QUOTA_TIMEOUT_MS:3000}
+  security:
+    service-token: ${BILLING_SERVICE_TOKEN:}
+  webhook:
+    secret: ${WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true
