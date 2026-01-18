@@ -93,6 +93,9 @@ public class BillingService {
     Instant createdAt = parseInstant(createdAtRaw, Instant.now(clock));
     Instant expiresAt = parseInstant(expiresAtRaw, null);
     Instant now = Instant.now(clock);
+    String amountFormatted = formatAmount(request.amountCents());
+
+    log.info("Created PIX chargeId={} amountCents={} expiresAt={}", chargeId, request.amountCents(), expiresAtRaw);
 
     BillingCharge charge = new BillingCharge(
         chargeId,
@@ -119,6 +122,8 @@ public class BillingService {
     return new BillingChargeResponse(
         chargeId,
         statusTop,
+        request.amountCents(),
+        amountFormatted,
         expiresAtRaw,
         pixCopyPaste,
         qrBase64
@@ -354,7 +359,7 @@ public class BillingService {
   }
 
   private String qrExpirationIso() {
-    int ttl = Math.max(30, pagBankProperties.getQrTtlSeconds());
+    int ttl = Math.max(1800, pagBankProperties.getQrTtlSeconds());
     ZoneId zone = ZoneId.of(pagBankProperties.getTimezone());
     ZonedDateTime now = ZonedDateTime.now(clock).withZoneSameInstant(zone);
     ZonedDateTime exp = now.plusSeconds(ttl).withNano(0);
@@ -421,6 +426,12 @@ public class BillingService {
     }
     String normalized = status.trim().toUpperCase(Locale.ROOT);
     return "PAID".equals(normalized) || "CONFIRMED".equals(normalized);
+  }
+
+  private String formatAmount(int amountCents) {
+    int reais = amountCents / 100;
+    int cents = Math.abs(amountCents % 100);
+    return String.format("R$ %d,%02d", reais, cents);
   }
 
   private BillingCharge merge(BillingCharge existing, BillingCharge update) {

@@ -110,6 +110,8 @@ class BillingControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.chargeId").value("order-123"))
         .andExpect(jsonPath("$.status").value("CREATED"))
+        .andExpect(jsonPath("$.amountCents").value(4900))
+        .andExpect(jsonPath("$.amount").value("R$ 49,00"))
         .andExpect(jsonPath("$.pixCopyPaste").value("000201"))
         .andExpect(jsonPath("$.qrCodeBase64").value("BASE64DATA"));
 
