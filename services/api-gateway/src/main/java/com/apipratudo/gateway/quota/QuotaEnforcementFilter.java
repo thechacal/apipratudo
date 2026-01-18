@@ -191,7 +191,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       HttpServletRequest request,
       String plan
   ) throws IOException {
-    String message = "Você consumiu todo o seu pacote FREE. Assine o Premium.";
+    String message = "Cota esgotada. Recarregue para continuar.";
     QuotaExceededResponse body = new QuotaExceededResponse(
         "QUOTA_EXCEEDED",
         message,

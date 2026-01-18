@@ -3,6 +3,7 @@ package com.apipratudo.quota.repository;
 import com.apipratudo.quota.config.FirestoreProperties;
 import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.model.ApiKey;
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.ApiKeyStatus;
 import com.apipratudo.quota.model.Plan;
 import com.google.cloud.Timestamp;
@@ -112,6 +113,11 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     limitsData.put("requestsPerDay", limits.requestsPerDay());
     data.put("limits", limitsData);
 
+    long creditsRemaining = apiKey.credits() == null ? 0 : apiKey.credits().remaining();
+    Map<String, Object> creditsData = new HashMap<>();
+    creditsData.put("remaining", creditsRemaining);
+    data.put("credits", creditsData);
+
     return data;
   }
 
@@ -140,13 +146,20 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
         toInt(limitsRaw, "requestsPerDay")
     );
 
+    @SuppressWarnings("unchecked")
+    Map<String, Object> creditsRaw = snapshot.get("credits") instanceof Map<?, ?>
+        ? (Map<String, Object>) snapshot.get("credits")
+        : null;
+    long creditsRemaining = toLong(creditsRaw, "remaining");
+    ApiKeyCredits credits = new ApiKeyCredits(creditsRemaining);
+
     Instant createdAt = toInstant(snapshot.getTimestamp("createdAt"));
     Instant minuteBucket = toInstant(snapshot.getTimestamp("minuteBucket"));
     long minuteCount = getLong(snapshot, "minuteCount");
     String dayBucket = snapshot.getString("dayBucket");
     long dayCount = getLong(snapshot, "dayCount");
     return new ApiKey(id, apiKeyHash, name, owner, snapshot.getString("ownerEmail"),
-        snapshot.getString("orgName"), limits, createdAt, status, plan, minuteBucket, minuteCount, dayBucket,
+        snapshot.getString("orgName"), limits, createdAt, status, plan, credits, minuteBucket, minuteCount, dayBucket,
         dayCount);
   }
 
@@ -171,6 +184,17 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     Object value = data.get(key);
     if (value instanceof Number number) {
       return number.intValue();
+    }
+    return 0;
+  }
+
+  private long toLong(Map<String, Object> data, String key) {
+    if (data == null) {
+      return 0;
+    }
+    Object value = data.get(key);
+    if (value instanceof Number number) {
+      return number.longValue();
     }
     return 0;
   }

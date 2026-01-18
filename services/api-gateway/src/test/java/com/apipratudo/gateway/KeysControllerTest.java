@@ -35,7 +35,8 @@ class KeysControllerTest {
   private static MockWebServer portalServer;
   private static final AtomicInteger requestStatus = new AtomicInteger(201);
   private static final AtomicReference<String> requestBody = new AtomicReference<>(
-      "{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200}}\n");
+      "{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200},"
+          + "\"credits\":{\"remaining\":0}}\n");
 
   @Autowired
   private MockMvc mockMvc;
@@ -86,7 +87,7 @@ class KeysControllerTest {
   void requestKeyIsPublic() throws Exception {
     requestStatus.set(201);
     requestBody.set("{\"apiKey\":\"key-123\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,"
-        + "\"requestsPerDay\":200}}\n");
+        + "\"requestsPerDay\":200},\"credits\":{\"remaining\":0}}\n");
     String body = objectMapper.writeValueAsString(Map.of(
         "email", "teste@example.com",
         "org", "Acme",

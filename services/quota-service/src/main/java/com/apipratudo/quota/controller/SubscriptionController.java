@@ -1,7 +1,7 @@
 package com.apipratudo.quota.controller;
 
-import com.apipratudo.quota.dto.ActivatePremiumRequest;
-import com.apipratudo.quota.dto.ActivatePremiumResponse;
+import com.apipratudo.quota.dto.AddCreditsRequest;
+import com.apipratudo.quota.dto.AddCreditsResponse;
 import com.apipratudo.quota.service.ApiKeyService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/v1/subscriptions")
+@RequestMapping("/v1/credits")
 @Validated
-@Tag(name = "subscriptions")
+@Tag(name = "credits")
 @SecurityRequirement(name = "AdminToken")
 @SecurityRequirement(name = "InternalToken")
 public class SubscriptionController {
@@ -27,10 +27,10 @@ public class SubscriptionController {
     this.apiKeyService = apiKeyService;
   }
 
-  @PostMapping("/activate-premium")
-  public ResponseEntity<ActivatePremiumResponse> activatePremium(
-      @Valid @RequestBody ActivatePremiumRequest request
+  @PostMapping("/add")
+  public ResponseEntity<AddCreditsResponse> addCredits(
+      @Valid @RequestBody AddCreditsRequest request
   ) {
-    return ResponseEntity.ok(apiKeyService.activatePremium(request));
+    return ResponseEntity.ok(apiKeyService.addCredits(request));
   }
 }

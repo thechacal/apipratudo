@@ -21,7 +21,15 @@ app:
     base-url: ${BILLING_BASE_URL:http://localhost:8095}
     service-token: ${BILLING_SERVICE_TOKEN:}
     timeout-ms: ${BILLING_TIMEOUT_MS:3000}
-    premium-price-cents: ${PREMIUM_PRICE_CENTS:4900}
+    start:
+      price-cents: ${START_PRICE_CENTS:1990}
+      credits: ${START_CREDITS:50000}
+    pro:
+      price-cents: ${PRO_PRICE_CENTS:4990}
+      credits: ${PRO_CREDITS:200000}
+    scale:
+      price-cents: ${SCALE_PRICE_CENTS:9990}
+      credits: ${SCALE_CREDITS:500000}
   gateway:
     url: ${GATEWAY_URL:http://localhost:8080}
     docs-url: ${DOCS_URL:http://localhost:8080/docs}

@@ -16,8 +16,8 @@ Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco 
 - Fallback automatico para InMemory quando Firestore nao esta disponivel.
 - Calculo consistente de janelas minute/day e status alinhado ao consume.
 - Servicos de resultados da CAIXA expostos pelo gateway (/v1/*/resultado-oficial).
-- developer-portal-service publico para solicitar API key FREE e iniciar upgrade via PIX.
-- billing-service interno com cobranca PIX PagBank e ativacao de plano PREMIUM.
+- developer-portal-service publico para solicitar API key FREE e iniciar recarga via PIX.
+- billing-service interno com cobranca PIX PagBank e adicao de creditos.
 
 ## Lottery Results Services (via gateway)
 Endpoints (usar X-Api-Key):
@@ -91,7 +91,7 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 1. Abra o Swagger: http://localhost:8080/docs (em prod: https://<gateway-url>/docs)
 2. Solicite sua API key gratuita em POST /v1/keys/request
 3. Use a key para testar os endpoints
-4. Ao atingir o limite FREE, faca upgrade via PIX
+4. Ao atingir o limite FREE, recarregue via PIX
 
 ## Como obter API key (FREE)
 Fluxo publico via gateway (sem X-Api-Key). A chave so aparece uma vez na resposta.
@@ -102,25 +102,30 @@ curl -s -X POST http://localhost:8080/v1/keys/request \
   -d '{"email":"teste@exemplo.com","org":"Acme","useCase":"integracao resultados"}' | jq
 ```
 
-## Limites e upgrade
+## Limites e upgrade (creditos)
 Plano FREE:
 - 30 req/min
 - 200 req/dia
 - gratuito
 
-Plano PREMIUM:
-- 600 req/min
-- 50000 req/dia
-- R$ 49,00 por mes (padrao)
-- Upgrade via PIX, automatico, sem contato humano
+Pacotes de creditos (sem mensalidade):
+- START: R$ 19,90 -> 50.000 creditos
+- PRO: R$ 49,90 -> 200.000 creditos
+- SCALE: R$ 99,90 -> 500.000 creditos
 
-Ao estourar a quota, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED` e instrucao de upgrade.
+Enquanto credits.remaining > 0:
+- usa limites PREMIUM (rpm alto, sem bloqueio diario)
+Quando credits.remaining = 0:
+- volta automaticamente para FREE
+
+Ao estourar a quota FREE ou acabar os creditos, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED`
+e instrucao de recarga.
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/keys/upgrade \
   -H "X-Api-Key: $API_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"plan":"PREMIUM"}' | jq
+  -d '{"packageName":"START"}' | jq
 ```
 
 ```bash
@@ -130,8 +135,8 @@ curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
 
 Depois do pagamento PIX:
 - webhook PagBank confirma a cobranca no billing-service
-- billing-service ativa PREMIUM no quota-service
-- /v1/keys/status passa a retornar `plan=PREMIUM`
+- billing-service adiciona creditos no quota-service
+- /v1/keys/status retorna `credits.remaining` e `plan=PREMIUM` enquanto houver creditos
 
 ## Curls minimos (admin)
 ```bash

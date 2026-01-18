@@ -41,7 +41,8 @@ class FreeKeyCreationTest {
         .andExpect(jsonPath("$.apiKey").isNotEmpty())
         .andExpect(jsonPath("$.plan").value("FREE"))
         .andExpect(jsonPath("$.limits.requestsPerMinute").value(30))
-        .andExpect(jsonPath("$.limits.requestsPerDay").value(200));
+        .andExpect(jsonPath("$.limits.requestsPerDay").value(200))
+        .andExpect(jsonPath("$.credits.remaining").value(0));
 
     mockMvc.perform(post("/v1/internal/keys/create-free")
             .contentType(MediaType.APPLICATION_JSON)

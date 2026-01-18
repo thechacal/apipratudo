@@ -4,7 +4,8 @@ public record BillingChargeStatusResponse(
     String chargeId,
     String status,
     boolean paid,
-    String plan,
-    boolean premiumActivated
+    String packageName,
+    long credits,
+    boolean creditsApplied
 ) {
 }

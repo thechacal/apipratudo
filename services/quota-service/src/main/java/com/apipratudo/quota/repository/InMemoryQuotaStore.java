@@ -4,6 +4,7 @@ import com.apipratudo.quota.config.QuotaProperties;
 import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.dto.QuotaReason;
 import com.apipratudo.quota.model.ApiKey;
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.QuotaDecision;
 import com.apipratudo.quota.model.QuotaRefundDecision;
 import com.apipratudo.quota.model.QuotaStatus;
@@ -64,36 +65,79 @@ public class InMemoryQuotaStore implements QuotaStore {
 
     QuotaDecision decision;
     boolean consumed;
-    if (minute.exceeded() || day.exceeded()) {
-      WindowDecision exceeded = chooseExceeded(minute, day);
-      decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, exceeded.limit(), 0, exceeded.resetAt());
-      consumed = false;
+    long creditsRemaining = apiKey.credits() == null ? 0 : apiKey.credits().remaining();
+    long creditsConsumed = 0;
+    if (creditsRemaining >= cost) {
+      if (minute.exceeded()) {
+        decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, minute.limit(), 0, minute.resetAt());
+        consumed = false;
+      } else {
+        long newCredits = Math.max(creditsRemaining - cost, 0);
+        creditsConsumed = cost;
+        decision = new QuotaDecision(true, null, minute.limit(), minute.remaining(), minute.resetAt());
+        consumed = true;
+        Instant minuteBucket = usage.minuteBucket();
+        String dayBucket = usage.dayBucket();
+        long minuteCount = minute.newCount();
+        long dayCount = apiKey.dayCount();
+
+        if (newCredits == 0) {
+          minuteCount = 0;
+          dayCount = 0;
+        }
+
+        ApiKey updated = new ApiKey(
+            apiKey.id(),
+            apiKey.apiKeyHash(),
+            apiKey.name(),
+            apiKey.owner(),
+            apiKey.ownerEmail(),
+            apiKey.orgName(),
+            apiKey.limits(),
+            apiKey.createdAt(),
+            apiKey.status(),
+            apiKey.plan(),
+            new ApiKeyCredits(newCredits),
+            minuteBucket,
+            minuteCount,
+            dayBucket,
+            dayCount
+        );
+        apiKeyRepository.save(updated);
+      }
     } else {
-      WindowDecision selected = chooseMostRestrictive(minute, day);
-      decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
-      consumed = true;
-      ApiKey updated = new ApiKey(
-          apiKey.id(),
-          apiKey.apiKeyHash(),
-          apiKey.name(),
-          apiKey.owner(),
-          apiKey.ownerEmail(),
-          apiKey.orgName(),
-          apiKey.limits(),
-          apiKey.createdAt(),
-          apiKey.status(),
-          apiKey.plan(),
-          usage.minuteBucket(),
-          minute.newCount(),
-          usage.dayBucket(),
-          day.newCount()
-      );
-      apiKeyRepository.save(updated);
+      if (minute.exceeded() || day.exceeded()) {
+        WindowDecision exceeded = chooseExceeded(minute, day);
+        decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, exceeded.limit(), 0, exceeded.resetAt());
+        consumed = false;
+      } else {
+        WindowDecision selected = chooseMostRestrictive(minute, day);
+        decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
+        consumed = true;
+        ApiKey updated = new ApiKey(
+            apiKey.id(),
+            apiKey.apiKeyHash(),
+            apiKey.name(),
+            apiKey.owner(),
+            apiKey.ownerEmail(),
+            apiKey.orgName(),
+            apiKey.limits(),
+            apiKey.createdAt(),
+            apiKey.status(),
+            apiKey.plan(),
+            apiKey.credits(),
+            usage.minuteBucket(),
+            minute.newCount(),
+            usage.dayBucket(),
+            day.newCount()
+        );
+        apiKeyRepository.save(updated);
+      }
     }
 
     Instant expiresAt = now.plusSeconds(properties.getIdempotencyTtlSeconds());
-    ledger.put(idempotencyKey, new LedgerEntry(decision, expiresAt, usage.minuteBucket(), usage.dayBucket(), cost,
-        consumed, false));
+    ledger.put(idempotencyKey, new LedgerEntry(decision, expiresAt, usage.minuteBucket(),
+        creditsRemaining > 0 ? null : usage.dayBucket(), cost, consumed, false, creditsConsumed));
     return decision;
   }
 
@@ -159,6 +203,7 @@ public class InMemoryQuotaStore implements QuotaStore {
   private ApiKey updateUsageForRefund(ApiKey apiKey, LedgerEntry entry) {
     long minuteCount = apiKey.minuteCount();
     long dayCount = apiKey.dayCount();
+    long creditsRemaining = apiKey.credits() == null ? 0 : apiKey.credits().remaining();
     boolean updated = false;
 
     if (matchesBucket(apiKey.minuteBucket(), entry.minuteBucket())) {
@@ -167,6 +212,10 @@ public class InMemoryQuotaStore implements QuotaStore {
     }
     if (entry.dayBucket() != null && entry.dayBucket().equals(apiKey.dayBucket())) {
       dayCount = Math.max(dayCount - entry.cost(), 0);
+      updated = true;
+    }
+    if (entry.creditsConsumed() > 0) {
+      creditsRemaining += entry.creditsConsumed();
       updated = true;
     }
 
@@ -185,6 +234,7 @@ public class InMemoryQuotaStore implements QuotaStore {
         apiKey.createdAt(),
         apiKey.status(),
         apiKey.plan(),
+        new ApiKeyCredits(creditsRemaining),
         apiKey.minuteBucket(),
         minuteCount,
         apiKey.dayBucket(),
@@ -248,11 +298,12 @@ public class InMemoryQuotaStore implements QuotaStore {
       String dayBucket,
       int cost,
       boolean consumed,
-      boolean refunded
+      boolean refunded,
+      long creditsConsumed
   ) {
 
     LedgerEntry withRefunded() {
-      return new LedgerEntry(decision, expiresAt, minuteBucket, dayBucket, cost, consumed, true);
+      return new LedgerEntry(decision, expiresAt, minuteBucket, dayBucket, cost, consumed, true, creditsConsumed);
     }
   }
 

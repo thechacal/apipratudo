@@ -30,15 +30,15 @@ class SubscriptionActivationTest {
   private ObjectMapper objectMapper;
 
   @Test
-  void activatePremiumUpdatesPlanAndLimits() throws Exception {
+  void addCreditsUpdatesStatus() throws Exception {
     String apiKey = createApiKey(5, 10);
 
     String body = objectMapper.writeValueAsString(Map.of(
         "apiKey", apiKey,
-        "plan", "PREMIUM"
+        "credits", 50000
     ));
 
-    mockMvc.perform(post("/v1/subscriptions/activate-premium")
+    mockMvc.perform(post("/v1/credits/add")
             .contentType(MediaType.APPLICATION_JSON)
             .header("X-Internal-Token", "test-internal")
             .content(body))
@@ -53,6 +53,7 @@ class SubscriptionActivationTest {
     assertThat(json.get("plan").asText()).isEqualTo("PREMIUM");
     assertThat(json.get("limits").get("requestsPerMinute").asInt()).isEqualTo(600);
     assertThat(json.get("limits").get("requestsPerDay").asInt()).isEqualTo(50000);
+    assertThat(json.get("credits").get("remaining").asLong()).isEqualTo(50000);
   }
 
   private String createApiKey(int requestsPerMinute, int requestsPerDay) throws Exception {

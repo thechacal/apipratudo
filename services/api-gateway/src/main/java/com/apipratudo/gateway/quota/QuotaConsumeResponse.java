@@ -10,6 +10,9 @@ public record QuotaConsumeResponse(
     Instant resetAt,
     String error,
     String message,
-    String plan
+    String plan,
+    Credits credits
 ) {
+  public record Credits(long remaining) {
+  }
 }

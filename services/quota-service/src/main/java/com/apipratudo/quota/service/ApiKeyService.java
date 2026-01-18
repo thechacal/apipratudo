@@ -2,8 +2,8 @@ package com.apipratudo.quota.service;
 
 import com.apipratudo.quota.config.KeyCreationProperties;
 import com.apipratudo.quota.config.PlanProperties;
-import com.apipratudo.quota.dto.ActivatePremiumRequest;
-import com.apipratudo.quota.dto.ActivatePremiumResponse;
+import com.apipratudo.quota.dto.AddCreditsRequest;
+import com.apipratudo.quota.dto.AddCreditsResponse;
 import com.apipratudo.quota.dto.ApiKeyCreateRequest;
 import com.apipratudo.quota.dto.ApiKeyCreateResponse;
 import com.apipratudo.quota.dto.ApiKeyLimits;
@@ -14,6 +14,7 @@ import com.apipratudo.quota.dto.CreateFreeKeyResponse;
 import com.apipratudo.quota.error.ResourceNotFoundException;
 import com.apipratudo.quota.error.KeyCreationLimitException;
 import com.apipratudo.quota.model.ApiKey;
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.ApiKeyStatus;
 import com.apipratudo.quota.model.Plan;
 import com.apipratudo.quota.repository.ApiKeyRepository;
@@ -69,6 +70,7 @@ public class ApiKeyService {
         now,
         ApiKeyStatus.ACTIVE,
         plan,
+        new ApiKeyCredits(0),
         null,
         0,
         null,
@@ -77,7 +79,8 @@ public class ApiKeyService {
     repository.save(model);
 
     return new ApiKeyCreateResponse(id, apiKey, request.name(), request.owner(), request.ownerEmail(),
-        StringUtils.hasText(request.orgName()) ? request.orgName() : request.owner(), plan, limits, now);
+        StringUtils.hasText(request.orgName()) ? request.orgName() : request.owner(), plan, limits, now,
+        model.credits());
   }
 
   public CreateFreeKeyResponse createFreeKey(CreateFreeKeyRequest request) {
@@ -115,6 +118,7 @@ public class ApiKeyService {
         now,
         ApiKeyStatus.ACTIVE,
         plan,
+        new ApiKeyCredits(0),
         null,
         0,
         null,
@@ -122,14 +126,16 @@ public class ApiKeyService {
     );
     repository.save(model);
 
-    return new CreateFreeKeyResponse(id, apiKey, email, org, plan, limits, now);
+    return new CreateFreeKeyResponse(id, apiKey, email, org, plan, limits, now, model.credits());
   }
 
   public ApiKeyResponse get(String id) {
     ApiKey apiKey = repository.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("API key not found"));
+    Plan plan = derivePlan(apiKey);
+    ApiKeyLimits limits = effectiveLimits(apiKey, plan);
     return new ApiKeyResponse(apiKey.id(), apiKey.name(), apiKey.owner(), apiKey.ownerEmail(), apiKey.orgName(),
-        apiKey.plan(), apiKey.limits(), apiKey.createdAt(), apiKey.status());
+        plan, limits, apiKey.createdAt(), apiKey.status(), apiKey.credits());
   }
 
   public ApiKeyRotateResponse rotate(String id) {
@@ -147,6 +153,7 @@ public class ApiKeyService {
         apiKey.createdAt(),
         apiKey.status(),
         apiKey.plan(),
+        apiKey.credits(),
         apiKey.minuteBucket(),
         apiKey.minuteCount(),
         apiKey.dayBucket(),
@@ -170,24 +177,27 @@ public class ApiKeyService {
         apiKey.createdAt(),
         status,
         apiKey.plan(),
+        apiKey.credits(),
         apiKey.minuteBucket(),
         apiKey.minuteCount(),
         apiKey.dayBucket(),
         apiKey.dayCount()
     );
     repository.save(updated);
+    Plan plan = derivePlan(updated);
+    ApiKeyLimits limits = effectiveLimits(updated, plan);
     return new ApiKeyResponse(updated.id(), updated.name(), updated.owner(), updated.ownerEmail(), updated.orgName(),
-        updated.plan(), updated.limits(), updated.createdAt(), updated.status());
+        plan, limits, updated.createdAt(), updated.status(), updated.credits());
   }
 
-  public ActivatePremiumResponse activatePremium(ActivatePremiumRequest request) {
+  public AddCreditsResponse addCredits(AddCreditsRequest request) {
     String apiKeyHash = resolveHash(request.apiKey(), request.apiKeyHash());
     ApiKey apiKey = repository.findByApiKeyHash(apiKeyHash)
         .orElseThrow(() -> new ResourceNotFoundException("API key not found"));
 
-    Plan plan = request.plan() == null ? Plan.PREMIUM : request.plan();
-    ApiKeyLimits limits = request.limits() == null ? planProperties.limitsFor(plan) : request.limits();
-
+    long toAdd = request.credits();
+    long current = apiKey.credits() == null ? 0 : apiKey.credits().remaining();
+    long updatedRemaining = current + Math.max(toAdd, 0);
     ApiKey updated = new ApiKey(
         apiKey.id(),
         apiKey.apiKeyHash(),
@@ -195,17 +205,19 @@ public class ApiKeyService {
         apiKey.owner(),
         apiKey.ownerEmail(),
         apiKey.orgName(),
-        limits,
+        apiKey.limits(),
         apiKey.createdAt(),
         apiKey.status(),
-        plan,
-        apiKey.minuteBucket(),
-        apiKey.minuteCount(),
-        apiKey.dayBucket(),
-        apiKey.dayCount()
+        apiKey.plan(),
+        new ApiKeyCredits(updatedRemaining),
+        null,
+        0,
+        null,
+        0
     );
     repository.save(updated);
-    return new ActivatePremiumResponse(updated.id(), updated.plan(), updated.limits());
+    Plan plan = derivePlan(updated);
+    return new AddCreditsResponse(updated.id(), toAdd, updatedRemaining, plan);
   }
 
   private String resolveHash(String apiKey, String apiKeyHash) {
@@ -224,5 +236,21 @@ public class ApiKeyService {
 
   private String normalizeOrg(String org) {
     return org == null ? null : org.trim();
+  }
+
+  private Plan derivePlan(ApiKey apiKey) {
+    long remaining = apiKey.credits() == null ? 0 : apiKey.credits().remaining();
+    return remaining > 0 ? Plan.PREMIUM : Plan.FREE;
+  }
+
+  private ApiKeyLimits effectiveLimits(ApiKey apiKey, Plan plan) {
+    if (plan == Plan.PREMIUM) {
+      return planProperties.limitsFor(Plan.PREMIUM);
+    }
+    ApiKeyLimits stored = apiKey.limits();
+    if (stored == null || stored.requestsPerMinute() <= 0 || stored.requestsPerDay() <= 0) {
+      return planProperties.limitsFor(Plan.FREE);
+    }
+    return stored;
   }
 }

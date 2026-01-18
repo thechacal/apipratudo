@@ -1,5 +1,6 @@
 package com.apipratudo.quota.dto;
 
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.Plan;
 import java.time.Instant;
 
@@ -14,7 +15,8 @@ public record QuotaConsumeResponse(
     Plan plan,
     ApiKeyLimits limits,
     QuotaUsage usage,
-    UpgradeHint upgrade
+    UpgradeHint upgrade,
+    ApiKeyCredits credits
 ) {
   public record UpgradeHint(String endpoint, String method) {
   }

@@ -7,7 +7,8 @@ public record BillingCharge(
     String referenceId,
     String apiKeyHash,
     String apiKeyPrefix,
-    String plan,
+    String packageName,
+    Long credits,
     Integer amountCents,
     String description,
     String statusCharge,
@@ -19,6 +20,6 @@ public record BillingCharge(
     String pixCopyPaste,
     String qrCodeBase64,
     Instant paidAt,
-    Boolean premiumActivated
+    Boolean creditsApplied
 ) {
 }

@@ -79,6 +79,7 @@ public class FirestoreQuotaStore implements QuotaStore {
       long storedMinuteCount = getLong(apiKeySnapshot, "minuteCount");
       String storedDayBucket = apiKeySnapshot.getString("dayBucket");
       long storedDayCount = getLong(apiKeySnapshot, "dayCount");
+      long storedCredits = getCreditsRemaining(apiKeySnapshot);
 
       Instant minuteBucket = minuteWindow.windowStart();
       String dayBucket = dayBucket(dayWindow.windowStart());
@@ -91,26 +92,54 @@ public class FirestoreQuotaStore implements QuotaStore {
 
       QuotaDecision decision;
       boolean consumed;
-      if (minute.exceeded() || day.exceeded()) {
-        WindowDecision exceeded = chooseExceeded(minute, day);
-        decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, exceeded.limit(), 0, exceeded.resetAt());
-        consumed = false;
-      } else {
-        WindowDecision selected = chooseMostRestrictive(minute, day);
-        decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
-        consumed = true;
+      boolean useCredits = storedCredits >= cost;
+      long creditsConsumed = 0;
+      if (useCredits) {
+        if (minute.exceeded()) {
+          decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, minute.limit(), 0, minute.resetAt());
+          consumed = false;
+        } else {
+          long remainingCredits = Math.max(storedCredits - cost, 0);
+          creditsConsumed = cost;
+          decision = new QuotaDecision(true, null, minute.limit(), minute.remaining(), minute.resetAt());
+          consumed = true;
 
-        Map<String, Object> apiKeyUpdates = new HashMap<>();
-        apiKeyUpdates.put("minuteBucket", toTimestamp(minuteBucket));
-        apiKeyUpdates.put("minuteCount", minute.newCount());
-        apiKeyUpdates.put("dayBucket", dayBucket);
-        apiKeyUpdates.put("dayCount", day.newCount());
-        apiKeyUpdates.put("updatedAt", toTimestamp(now));
-        transaction.set(apiKeyRef, apiKeyUpdates, SetOptions.merge());
+          Map<String, Object> apiKeyUpdates = new HashMap<>();
+          apiKeyUpdates.put("minuteBucket", toTimestamp(minuteBucket));
+          apiKeyUpdates.put("minuteCount", minute.newCount());
+          apiKeyUpdates.put("credits", Map.of("remaining", remainingCredits));
+          apiKeyUpdates.put("updatedAt", toTimestamp(now));
+
+          if (remainingCredits == 0) {
+            apiKeyUpdates.put("minuteCount", 0);
+            apiKeyUpdates.put("dayBucket", dayBucket);
+            apiKeyUpdates.put("dayCount", 0);
+          }
+
+          transaction.set(apiKeyRef, apiKeyUpdates, SetOptions.merge());
+        }
+      } else {
+        if (minute.exceeded() || day.exceeded()) {
+          WindowDecision exceeded = chooseExceeded(minute, day);
+          decision = new QuotaDecision(false, QuotaReason.QUOTA_EXCEEDED, exceeded.limit(), 0, exceeded.resetAt());
+          consumed = false;
+        } else {
+          WindowDecision selected = chooseMostRestrictive(minute, day);
+          decision = new QuotaDecision(true, null, selected.limit(), selected.remaining(), selected.resetAt());
+          consumed = true;
+
+          Map<String, Object> apiKeyUpdates = new HashMap<>();
+          apiKeyUpdates.put("minuteBucket", toTimestamp(minuteBucket));
+          apiKeyUpdates.put("minuteCount", minute.newCount());
+          apiKeyUpdates.put("dayBucket", dayBucket);
+          apiKeyUpdates.put("dayCount", day.newCount());
+          apiKeyUpdates.put("updatedAt", toTimestamp(now));
+          transaction.set(apiKeyRef, apiKeyUpdates, SetOptions.merge());
+        }
       }
 
       Map<String, Object> idempotencyData = idempotencyData(apiKey, requestId, route, decision, now, cost,
-          minuteBucket, dayBucket, consumed);
+          minuteBucket, useCredits ? null : dayBucket, consumed, creditsConsumed);
       transaction.set(idempotencyRef, idempotencyData, SetOptions.merge());
       return decision;
     });
@@ -144,6 +173,7 @@ public class FirestoreQuotaStore implements QuotaStore {
       }
 
       int cost = (int) getLong(snapshot, "cost");
+      long creditsConsumed = getLong(snapshot, "creditsConsumed");
       Instant entryMinuteBucket = toInstant(snapshot.getTimestamp("minuteBucket"));
       String entryDayBucket = snapshot.getString("dayBucket");
 
@@ -152,10 +182,12 @@ public class FirestoreQuotaStore implements QuotaStore {
       long storedMinuteCount = getLong(apiKeySnapshot, "minuteCount");
       String storedDayBucket = apiKeySnapshot.getString("dayBucket");
       long storedDayCount = getLong(apiKeySnapshot, "dayCount");
+      long storedCredits = getCreditsRemaining(apiKeySnapshot);
 
       boolean updated = false;
       long newMinuteCount = storedMinuteCount;
       long newDayCount = storedDayCount;
+      long newCredits = storedCredits;
 
       if (entryMinuteBucket != null && matchesBucket(storedMinuteBucket, entryMinuteBucket)) {
         newMinuteCount = Math.max(storedMinuteCount - cost, 0);
@@ -165,11 +197,18 @@ public class FirestoreQuotaStore implements QuotaStore {
         newDayCount = Math.max(storedDayCount - cost, 0);
         updated = true;
       }
+      if (creditsConsumed > 0) {
+        newCredits = storedCredits + creditsConsumed;
+        updated = true;
+      }
 
       if (updated) {
         Map<String, Object> apiKeyUpdates = new HashMap<>();
         apiKeyUpdates.put("minuteCount", newMinuteCount);
         apiKeyUpdates.put("dayCount", newDayCount);
+        if (creditsConsumed > 0) {
+          apiKeyUpdates.put("credits", Map.of("remaining", newCredits));
+        }
         apiKeyUpdates.put("updatedAt", toTimestamp(now));
         transaction.set(apiKeyRef, apiKeyUpdates, SetOptions.merge());
       }
@@ -270,7 +309,8 @@ public class FirestoreQuotaStore implements QuotaStore {
       int cost,
       Instant minuteBucket,
       String dayBucket,
-      boolean consumed
+      boolean consumed,
+      long creditsConsumed
   ) {
     Map<String, Object> data = new HashMap<>();
     data.put("apiKeyId", apiKey.id());
@@ -282,6 +322,7 @@ public class FirestoreQuotaStore implements QuotaStore {
     data.put("cost", cost);
     data.put("minuteBucket", toTimestamp(minuteBucket));
     data.put("dayBucket", dayBucket);
+    data.put("creditsConsumed", creditsConsumed);
     if (decision.reason() != null) {
       data.put("reason", decision.reason().name());
     }
@@ -335,6 +376,18 @@ public class FirestoreQuotaStore implements QuotaStore {
   private long getLong(DocumentSnapshot snapshot, String field) {
     Long value = snapshot.getLong(field);
     return value == null ? 0 : value;
+  }
+
+  private long getCreditsRemaining(DocumentSnapshot snapshot) {
+    Object raw = snapshot.get("credits");
+    if (!(raw instanceof Map<?, ?> map)) {
+      return 0;
+    }
+    Object remaining = map.get("remaining");
+    if (remaining instanceof Number number) {
+      return number.longValue();
+    }
+    return 0;
   }
 
   private Timestamp toTimestamp(Instant instant) {

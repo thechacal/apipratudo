@@ -1,5 +1,6 @@
 package com.apipratudo.portal.config;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,8 +18,14 @@ public class BillingClientProperties {
   @Min(100)
   private long timeoutMs = 3000;
 
-  @Min(1)
-  private int premiumPriceCents = 4900;
+  @Valid
+  private CreditPackageConfig start = new CreditPackageConfig(1990, 50000);
+
+  @Valid
+  private CreditPackageConfig pro = new CreditPackageConfig(4990, 200000);
+
+  @Valid
+  private CreditPackageConfig scale = new CreditPackageConfig(9990, 500000);
 
   public String getBaseUrl() {
     return baseUrl;
@@ -44,11 +51,30 @@ public class BillingClientProperties {
     this.timeoutMs = timeoutMs;
   }
 
-  public int getPremiumPriceCents() {
-    return premiumPriceCents;
+  public CreditPackageConfig getStart() {
+    return start;
   }
 
-  public void setPremiumPriceCents(int premiumPriceCents) {
-    this.premiumPriceCents = premiumPriceCents;
+  public void setStart(CreditPackageConfig start) {
+    this.start = start;
+  }
+
+  public CreditPackageConfig getPro() {
+    return pro;
+  }
+
+  public void setPro(CreditPackageConfig pro) {
+    this.pro = pro;
+  }
+
+  public CreditPackageConfig getScale() {
+    return scale;
+  }
+
+  public void setScale(CreditPackageConfig scale) {
+    this.scale = scale;
+  }
+
+  public record CreditPackageConfig(@Min(1) int priceCents, @Min(1) long credits) {
   }
 }

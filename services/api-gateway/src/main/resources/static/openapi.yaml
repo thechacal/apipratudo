@@ -99,7 +99,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
   /v1/keys/upgrade:
     post:
-      summary: Gerar cobranca PIX do plano premium
+      summary: Gerar cobranca PIX de pacotes de creditos
+      description: "Compra pacotes de creditos (sem mensalidade). Enquanto credits.remaining > 0, usa limites PREMIUM. Ao zerar, volta para FREE."
       tags:
         - keys
       security:
@@ -892,6 +893,14 @@ components:
         requestsPerDay:
           type: integer
           minimum: 1
+    ApiKeyCredits:
+      type: object
+      required:
+        - remaining
+      properties:
+        remaining:
+          type: integer
+          format: int64
     QuotaWindowStatus:
       type: object
       required:
@@ -929,6 +938,7 @@ components:
         - plan
         - limits
         - usage
+        - credits
       properties:
         apiKeyId:
           type: string
@@ -938,6 +948,8 @@ components:
           $ref: "#/components/schemas/ApiKeyLimits"
         usage:
           $ref: "#/components/schemas/QuotaUsage"
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
     KeyRequest:
       type: object
       required:
@@ -957,6 +969,7 @@ components:
         - apiKey
         - plan
         - limits
+        - credits
         - docsUrl
         - gatewayUrl
       properties:
@@ -966,18 +979,22 @@ components:
           $ref: "#/components/schemas/Plan"
         limits:
           $ref: "#/components/schemas/ApiKeyLimits"
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
         docsUrl:
           type: string
         gatewayUrl:
           type: string
     KeyUpgradeRequest:
       type: object
-      required:
-        - plan
       properties:
-        plan:
+        packageName:
           type: string
-          example: PREMIUM
+          example: START
+          enum:
+            - START
+            - PRO
+            - SCALE
     BillingChargeResponse:
       type: object
       required:
@@ -988,6 +1005,15 @@ components:
         chargeId:
           type: string
         status:
+          type: string
+        amountCents:
+          type: integer
+        amount:
+          type: string
+        credits:
+          type: integer
+          format: int64
+        packageName:
           type: string
         expiresAt:
           type: string
@@ -1008,9 +1034,12 @@ components:
           type: string
         paid:
           type: boolean
-        plan:
+        packageName:
           type: string
-        premiumActivated:
+        credits:
+          type: integer
+          format: int64
+        creditsApplied:
           type: boolean
     FederalPremio:
       type: object

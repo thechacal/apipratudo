@@ -2,6 +2,7 @@ package com.apipratudo.quota.config;
 
 import com.apipratudo.quota.dto.ApiKeyLimits;
 import com.apipratudo.quota.model.ApiKey;
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.ApiKeyStatus;
 import com.apipratudo.quota.model.Plan;
 import com.apipratudo.quota.repository.ApiKeyRepository;
@@ -57,6 +58,7 @@ public class LocalApiKeySeeder {
           now,
           ApiKeyStatus.ACTIVE,
           Plan.FREE,
+          new ApiKeyCredits(0),
           null,
           0,
           null,

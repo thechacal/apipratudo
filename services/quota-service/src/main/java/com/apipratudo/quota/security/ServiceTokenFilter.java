@@ -67,7 +67,7 @@ public class ServiceTokenFilter extends OncePerRequestFilter {
         unauthorized(response, "Missing or invalid X-Portal-Token");
         return;
       }
-    } else if (path.startsWith("/v1/subscriptions/")) {
+    } else if (path.startsWith("/v1/credits/")) {
       if (!tokenService.isAdmin(request) && !tokenService.isInternal(request)) {
         unauthorized(response, "Missing or invalid X-Admin-Token or X-Internal-Token");
         return;

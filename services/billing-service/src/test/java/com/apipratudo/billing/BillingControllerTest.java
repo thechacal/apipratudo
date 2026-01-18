@@ -106,12 +106,14 @@ class BillingControllerTest {
     mockMvc.perform(post("/v1/billing/pix/charges")
             .contentType(MediaType.APPLICATION_JSON)
             .header("X-Service-Token", "test-service-token")
-            .content("{\"apiKey\":\"key-123\",\"plan\":\"PREMIUM\",\"amountCents\":4900}"))
+            .content("{\"apiKey\":\"key-123\",\"packageName\":\"START\",\"credits\":50000,\"amountCents\":4900}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.chargeId").value("order-123"))
         .andExpect(jsonPath("$.status").value("CREATED"))
         .andExpect(jsonPath("$.amountCents").value(4900))
         .andExpect(jsonPath("$.amount").value("R$ 49,00"))
+        .andExpect(jsonPath("$.credits").value(50000))
+        .andExpect(jsonPath("$.packageName").value("START"))
         .andExpect(jsonPath("$.pixCopyPaste").value("000201"))
         .andExpect(jsonPath("$.qrCodeBase64").value("BASE64DATA"));
 
@@ -126,16 +128,17 @@ class BillingControllerTest {
   }
 
   @Test
-  void webhookActivatesPremium() throws Exception {
+  void webhookAppliesCredits() throws Exception {
     String apiKeyHash = HashingUtils.sha256Hex("key-456");
     BillingCharge charge = new BillingCharge(
         "order-456",
         "ref-456",
         apiKeyHash,
         apiKeyHash.substring(0, 8),
-        "PREMIUM",
+        "START",
+        50000L,
         4900,
-        "Plano PREMIUM",
+        "Pacote START",
         null,
         "CREATED",
         Boolean.FALSE,
@@ -152,7 +155,7 @@ class BillingControllerTest {
     quotaServer.setDispatcher(new Dispatcher() {
       @Override
       public MockResponse dispatch(RecordedRequest request) {
-        if ("POST".equals(request.getMethod()) && "/v1/subscriptions/activate-premium".equals(request.getPath())) {
+        if ("POST".equals(request.getMethod()) && "/v1/credits/add".equals(request.getPath())) {
           return new MockResponse().setResponseCode(200).setBody("{}");
         }
         return new MockResponse().setResponseCode(404);
@@ -175,7 +178,9 @@ class BillingControllerTest {
     RecordedRequest activation = quotaServer.takeRequest(1, TimeUnit.SECONDS);
     assertThat(activation).isNotNull();
     assertThat(activation.getHeader("X-Internal-Token")).isEqualTo("test-internal");
-    assertThat(activation.getBody().readUtf8()).contains(apiKeyHash);
+    String activationBody = activation.getBody().readUtf8();
+    assertThat(activationBody).contains(apiKeyHash);
+    assertThat(activationBody).contains("credits");
   }
 
   @Test
@@ -186,9 +191,10 @@ class BillingControllerTest {
         "ref-789",
         apiKeyHash,
         apiKeyHash.substring(0, 8),
-        "PREMIUM",
+        "START",
+        50000L,
         4900,
-        "Plano PREMIUM",
+        "Pacote START",
         null,
         "CREATED",
         Boolean.FALSE,
@@ -219,7 +225,7 @@ class BillingControllerTest {
     quotaServer.setDispatcher(new Dispatcher() {
       @Override
       public MockResponse dispatch(RecordedRequest request) {
-        if ("POST".equals(request.getMethod()) && "/v1/subscriptions/activate-premium".equals(request.getPath())) {
+        if ("POST".equals(request.getMethod()) && "/v1/credits/add".equals(request.getPath())) {
           return new MockResponse().setResponseCode(200).setBody("{}");
         }
         return new MockResponse().setResponseCode(404);
@@ -231,7 +237,7 @@ class BillingControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.chargeId").value("order-789"))
         .andExpect(jsonPath("$.paid").value(true))
-        .andExpect(jsonPath("$.premiumActivated").value(true));
+        .andExpect(jsonPath("$.creditsApplied").value(true));
 
     RecordedRequest pagbankRequest = pagbankServer.takeRequest(1, TimeUnit.SECONDS);
     assertThat(pagbankRequest).isNotNull();

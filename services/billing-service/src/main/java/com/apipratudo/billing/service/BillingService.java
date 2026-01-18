@@ -62,14 +62,14 @@ public class BillingService {
   }
 
   public BillingChargeResponse createCharge(BillingChargeRequest request, String traceId) {
-    String plan = normalizePlan(request.plan());
+    String packageName = normalizePackageName(request.packageName());
     String apiKeyHash = resolveHash(request.apiKey(), request.apiKeyHash());
     String apiKeyPrefix = apiKeyHash == null ? null : apiKeyHash.substring(0, Math.min(8, apiKeyHash.length()));
 
     String referenceId = "PIX-" + (apiKeyPrefix == null ? "key" : apiKeyPrefix) + "-" +
         UUID.randomUUID().toString().replace("-", "").substring(0, 10);
 
-    Map<String, Object> payload = buildPayload(request, plan, referenceId);
+    Map<String, Object> payload = buildPayload(request, packageName, referenceId);
 
     JsonNode response = pagBankClient.createOrder(payload, UUID.randomUUID().toString());
     String chargeId = text(response, "id");
@@ -95,14 +95,16 @@ public class BillingService {
     Instant now = Instant.now(clock);
     String amountFormatted = formatAmount(request.amountCents());
 
-    log.info("Created PIX chargeId={} amountCents={} expiresAt={}", chargeId, request.amountCents(), expiresAtRaw);
+    log.info("Created PIX chargeId={} amountCents={} credits={} expiresAt={}", chargeId, request.amountCents(),
+        request.credits(), expiresAtRaw);
 
     BillingCharge charge = new BillingCharge(
         chargeId,
         referenceId,
         apiKeyHash,
         apiKeyPrefix,
-        plan,
+        packageName,
+        request.credits(),
         request.amountCents(),
         request.description(),
         null,
@@ -124,6 +126,8 @@ public class BillingService {
         statusTop,
         request.amountCents(),
         amountFormatted,
+        request.credits(),
+        packageName,
         expiresAtRaw,
         pixCopyPaste,
         qrBase64
@@ -135,8 +139,8 @@ public class BillingService {
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Charge not found"));
 
     if (Boolean.TRUE.equals(existing.paid())) {
-      if (!Boolean.TRUE.equals(existing.premiumActivated())) {
-        activatePremiumIfNeeded(existing, traceId);
+      if (!Boolean.TRUE.equals(existing.creditsApplied())) {
+        applyCreditsIfNeeded(existing, traceId);
         existing = repository.findById(chargeId).orElse(existing);
       }
       return toStatusResponse(existing);
@@ -152,7 +156,8 @@ public class BillingService {
         existing.referenceId(),
         existing.apiKeyHash(),
         existing.apiKeyPrefix(),
-        existing.plan(),
+        existing.packageName(),
+        existing.credits(),
         existing.amountCents(),
         existing.description(),
         statusCharge,
@@ -164,13 +169,13 @@ public class BillingService {
         existing.pixCopyPaste(),
         existing.qrCodeBase64(),
         paid ? Instant.now(clock) : existing.paidAt(),
-        existing.premiumActivated()
+        existing.creditsApplied()
     ));
 
     repository.save(updated);
 
     if (paid) {
-      activatePremiumIfNeeded(updated, traceId);
+      applyCreditsIfNeeded(updated, traceId);
       updated = repository.findById(chargeId).orElse(updated);
     }
 
@@ -218,7 +223,8 @@ public class BillingService {
           referenceId,
           existing == null ? null : existing.apiKeyHash(),
           existing == null ? null : existing.apiKeyPrefix(),
-          existing == null ? null : existing.plan(),
+          existing == null ? null : existing.packageName(),
+          existing == null ? null : existing.credits(),
           existing == null ? null : existing.amountCents(),
           existing == null ? null : existing.description(),
           statusCharge,
@@ -230,14 +236,14 @@ public class BillingService {
           existing == null ? null : existing.pixCopyPaste(),
           existing == null ? null : existing.qrCodeBase64(),
           paid ? Instant.now(clock) : (existing == null ? null : existing.paidAt()),
-          existing == null ? null : existing.premiumActivated()
+          existing == null ? null : existing.creditsApplied()
       );
 
       BillingCharge merged = existing == null ? update : merge(existing, update);
       repository.save(merged);
 
       if (paid) {
-        activatePremiumIfNeeded(merged, traceId);
+        applyCreditsIfNeeded(merged, traceId);
       }
     }
 
@@ -254,16 +260,18 @@ public class BillingService {
 
   private BillingChargeStatusResponse toStatusResponse(BillingCharge charge) {
     boolean paid = Boolean.TRUE.equals(charge.paid());
-    boolean premium = Boolean.TRUE.equals(charge.premiumActivated());
+    boolean creditsApplied = Boolean.TRUE.equals(charge.creditsApplied());
     String status = StringUtils.hasText(charge.statusCharge()) ? charge.statusCharge() : charge.statusTop();
-    return new BillingChargeStatusResponse(charge.chargeId(), status, paid, charge.plan(), premium);
+    long credits = charge.credits() == null ? 0 : charge.credits();
+    return new BillingChargeStatusResponse(charge.chargeId(), status, paid, charge.packageName(), credits,
+        creditsApplied);
   }
 
-  private String normalizePlan(String plan) {
-    if (!StringUtils.hasText(plan)) {
-      throw new IllegalArgumentException("Missing plan");
+  private String normalizePackageName(String packageName) {
+    if (!StringUtils.hasText(packageName)) {
+      return "START";
     }
-    return plan.trim().toUpperCase(Locale.ROOT);
+    return packageName.trim().toUpperCase(Locale.ROOT);
   }
 
   private String resolveHash(String apiKey, String apiKeyHash) {
@@ -276,11 +284,11 @@ public class BillingService {
     throw new IllegalArgumentException("apiKey or apiKeyHash is required");
   }
 
-  private Map<String, Object> buildPayload(BillingChargeRequest request, String plan, String referenceId) {
+  private Map<String, Object> buildPayload(BillingChargeRequest request, String packageName, String referenceId) {
     Map<String, Object> payload = new HashMap<>();
     payload.put("reference_id", referenceId);
     payload.put("customer", buildCustomer(request));
-    payload.put("items", buildItems(request, plan));
+    payload.put("items", buildItems(request, packageName));
     payload.put("qr_codes", buildQrCodes(request));
 
     if (StringUtils.hasText(pagBankProperties.getNotificationUrl())) {
@@ -319,10 +327,10 @@ public class BillingService {
     return customer;
   }
 
-  private Map<String, Object>[] buildItems(BillingChargeRequest request, String plan) {
+  private Map<String, Object>[] buildItems(BillingChargeRequest request, String packageName) {
     String name = StringUtils.hasText(request.description())
         ? request.description()
-        : "Plano " + plan;
+        : "Pacote " + packageName;
 
     Map<String, Object> item = new HashMap<>();
     item.put("name", name);
@@ -444,7 +452,8 @@ public class BillingService {
         firstNonBlank(update.referenceId(), existing.referenceId()),
         firstNonBlank(update.apiKeyHash(), existing.apiKeyHash()),
         firstNonBlank(update.apiKeyPrefix(), existing.apiKeyPrefix()),
-        firstNonBlank(update.plan(), existing.plan()),
+        firstNonBlank(update.packageName(), existing.packageName()),
+        update.credits() != null ? update.credits() : existing.credits(),
         update.amountCents() != null ? update.amountCents() : existing.amountCents(),
         firstNonBlank(update.description(), existing.description()),
         firstNonBlank(update.statusCharge(), existing.statusCharge()),
@@ -456,7 +465,7 @@ public class BillingService {
         firstNonBlank(update.pixCopyPaste(), existing.pixCopyPaste()),
         firstNonBlank(update.qrCodeBase64(), existing.qrCodeBase64()),
         update.paidAt() != null ? update.paidAt() : existing.paidAt(),
-        Boolean.TRUE.equals(update.premiumActivated()) || Boolean.TRUE.equals(existing.premiumActivated())
+        Boolean.TRUE.equals(update.creditsApplied()) || Boolean.TRUE.equals(existing.creditsApplied())
     );
   }
 
@@ -467,26 +476,32 @@ public class BillingService {
     return fallback;
   }
 
-  private void activatePremiumIfNeeded(BillingCharge charge, String traceId) {
+  private void applyCreditsIfNeeded(BillingCharge charge, String traceId) {
     if (!Boolean.TRUE.equals(charge.paid())) {
       return;
     }
-    if (Boolean.TRUE.equals(charge.premiumActivated())) {
+    if (Boolean.TRUE.equals(charge.creditsApplied())) {
       return;
     }
     if (!StringUtils.hasText(charge.apiKeyHash())) {
-      log.warn("Skipping premium activation: missing apiKeyHash chargeId={}", charge.chargeId());
+      log.warn("Skipping credits apply: missing apiKeyHash chargeId={}", charge.chargeId());
+      return;
+    }
+    long credits = charge.credits() == null ? 0 : charge.credits();
+    if (credits <= 0) {
+      log.warn("Skipping credits apply: missing credits chargeId={}", charge.chargeId());
       return;
     }
 
     try {
-      quotaClient.activatePremium(charge.apiKeyHash(), charge.plan(), traceId);
+      quotaClient.addCredits(charge.apiKeyHash(), credits, traceId);
       BillingCharge updated = new BillingCharge(
           charge.chargeId(),
           charge.referenceId(),
           charge.apiKeyHash(),
           charge.apiKeyPrefix(),
-          charge.plan(),
+          charge.packageName(),
+          charge.credits(),
           charge.amountCents(),
           charge.description(),
           charge.statusCharge(),
@@ -502,7 +517,7 @@ public class BillingService {
       );
       repository.save(updated);
     } catch (Exception ex) {
-      log.warn("Failed to activate premium chargeId={} reason={}", charge.chargeId(), ex.getMessage());
+      log.warn("Failed to apply credits chargeId={} reason={}", charge.chargeId(), ex.getMessage());
     }
   }
 

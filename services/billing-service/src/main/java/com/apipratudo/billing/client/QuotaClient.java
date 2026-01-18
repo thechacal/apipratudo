@@ -21,13 +21,16 @@ public class QuotaClient {
     this.internalToken = properties.getInternalToken();
   }
 
-  public void activatePremium(String apiKeyHash, String plan, String traceId) {
+  public void addCredits(String apiKeyHash, long credits, String traceId) {
     if (!StringUtils.hasText(apiKeyHash)) {
-      throw new IllegalArgumentException("Missing apiKeyHash for activation");
+      throw new IllegalArgumentException("Missing apiKeyHash for credits");
+    }
+    if (credits <= 0) {
+      throw new IllegalArgumentException("Credits must be positive");
     }
 
     WebClient.RequestBodySpec spec = webClient.post()
-        .uri("/v1/subscriptions/activate-premium")
+        .uri("/v1/credits/add")
         .contentType(MediaType.APPLICATION_JSON)
         .accept(MediaType.APPLICATION_JSON);
 
@@ -40,7 +43,7 @@ public class QuotaClient {
 
     Map<String, Object> body = Map.of(
         "apiKeyHash", apiKeyHash,
-        "plan", plan
+        "credits", credits
     );
 
     ClientResult result = spec.bodyValue(body)
@@ -54,7 +57,7 @@ public class QuotaClient {
       throw new IllegalStateException("Quota service returned empty response");
     }
     if (result.statusCode() < 200 || result.statusCode() >= 300) {
-      throw new IllegalStateException("Quota service activation failed status=" + result.statusCode());
+      throw new IllegalStateException("Quota service credits failed status=" + result.statusCode());
     }
   }
 

@@ -14,6 +14,7 @@ public record ApiKey(
     Instant createdAt,
     ApiKeyStatus status,
     Plan plan,
+    ApiKeyCredits credits,
     Instant minuteBucket,
     long minuteCount,
     String dayBucket,

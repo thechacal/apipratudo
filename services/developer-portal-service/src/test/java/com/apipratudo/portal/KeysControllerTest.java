@@ -48,7 +48,7 @@ class KeysControllerTest {
             return new MockResponse()
                 .setResponseCode(201)
                 .setHeader("Content-Type", "application/json")
-                .setBody("{\"id\":\"1\",\"apiKey\":\"key-123\",\"ownerEmail\":\"teste@example.com\",\"orgName\":\"Acme\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200},\"createdAt\":\"2024-01-01T00:00:00Z\"}");
+                .setBody("{\"id\":\"1\",\"apiKey\":\"key-123\",\"ownerEmail\":\"teste@example.com\",\"orgName\":\"Acme\",\"plan\":\"FREE\",\"limits\":{\"requestsPerMinute\":30,\"requestsPerDay\":200},\"createdAt\":\"2024-01-01T00:00:00Z\",\"credits\":{\"remaining\":0}}");
           }
           return new MockResponse().setResponseCode(404);
         }
@@ -68,7 +68,7 @@ class KeysControllerTest {
             return new MockResponse()
                 .setResponseCode(201)
                 .setHeader("Content-Type", "application/json")
-                .setBody("{\"chargeId\":\"ch-1\",\"status\":\"PENDING\"}");
+                .setBody("{\"chargeId\":\"ch-1\",\"status\":\"PENDING\",\"amountCents\":1990,\"amount\":\"R$ 19,90\",\"credits\":50000,\"packageName\":\"START\"}");
           }
           return new MockResponse().setResponseCode(404);
         }
@@ -117,7 +117,7 @@ class KeysControllerTest {
 
   @Test
   void upgradeProxiesBilling() throws Exception {
-    String body = objectMapper.writeValueAsString(Map.of("plan", "PREMIUM"));
+    String body = objectMapper.writeValueAsString(Map.of("packageName", "START"));
 
     mockMvc.perform(post("/v1/keys/upgrade")
             .header("X-Api-Key", "key-123")

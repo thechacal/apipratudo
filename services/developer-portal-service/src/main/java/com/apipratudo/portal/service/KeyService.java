@@ -5,12 +5,12 @@ import com.apipratudo.portal.client.QuotaClient;
 import com.apipratudo.portal.config.BillingClientProperties;
 import com.apipratudo.portal.config.GatewayProperties;
 import com.apipratudo.portal.dto.BillingChargeRequest;
+import com.apipratudo.portal.dto.CreditPackage;
 import com.apipratudo.portal.dto.CreateFreeKeyRequest;
 import com.apipratudo.portal.dto.CreateFreeKeyResponse;
 import com.apipratudo.portal.dto.KeyRequest;
 import com.apipratudo.portal.dto.KeyRequestResponse;
 import com.apipratudo.portal.dto.KeyUpgradeRequest;
-import com.apipratudo.portal.dto.Plan;
 import com.apipratudo.portal.rate.IpRateLimiter;
 import com.apipratudo.portal.rate.KeyRequestLimiter;
 import org.springframework.stereotype.Service;
@@ -54,6 +54,7 @@ public class KeyService {
         created.apiKey(),
         created.plan(),
         created.limits(),
+        created.credits(),
         gatewayProperties.getDocsUrl(),
         gatewayProperties.getUrl()
     );
@@ -64,18 +65,17 @@ public class KeyService {
   }
 
   public BillingClient.ClientResult upgrade(String apiKey, KeyUpgradeRequest request, String traceId) {
-    Plan plan = Plan.valueOf(request.plan().trim().toUpperCase());
-    if (plan != Plan.PREMIUM) {
-      throw new IllegalArgumentException("Only PREMIUM plan is supported");
-    }
+    CreditPackage creditPackage = CreditPackage.from(request.packageName());
+    BillingClientProperties.CreditPackageConfig config = packageConfig(creditPackage);
 
     String apiKeyHash = HashingUtils.sha256Hex(apiKey);
     BillingChargeRequest chargeRequest = new BillingChargeRequest(
         null,
         apiKeyHash,
-        plan.name(),
-        billingProperties.getPremiumPriceCents(),
-        "Plano PREMIUM apipratudo",
+        creditPackage.name(),
+        config.credits(),
+        config.priceCents(),
+        "Pacote " + creditPackage.name() + " apipratudo",
         null
     );
 
@@ -84,5 +84,13 @@ public class KeyService {
 
   public BillingClient.ClientResult upgradeStatus(String chargeId, String traceId) {
     return billingClient.chargeStatus(chargeId, traceId);
+  }
+
+  private BillingClientProperties.CreditPackageConfig packageConfig(CreditPackage creditPackage) {
+    return switch (creditPackage) {
+      case START -> billingProperties.getStart();
+      case PRO -> billingProperties.getPro();
+      case SCALE -> billingProperties.getScale();
+    };
   }
 }

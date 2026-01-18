@@ -1,5 +1,6 @@
 package com.apipratudo.quota.dto;
 
+import com.apipratudo.quota.model.ApiKeyCredits;
 import com.apipratudo.quota.model.Plan;
 import java.time.Instant;
 
@@ -12,6 +13,7 @@ public record ApiKeyCreateResponse(
     String orgName,
     Plan plan,
     ApiKeyLimits limits,
-    Instant createdAt
+    Instant createdAt,
+    ApiKeyCredits credits
 ) {
 }

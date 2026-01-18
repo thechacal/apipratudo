@@ -281,12 +281,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /v1/subscriptions/activate-premium:
+  /v1/credits/add:
     post:
-      summary: Ativar plano premium
-      description: Endpoint interno/admin para atualizar o plano da API key.
+      summary: Adicionar creditos
+      description: Endpoint interno/admin para adicionar creditos a API key.
       tags:
-        - subscriptions
+        - credits
       security:
         - AdminToken: []
         - InternalToken: []
@@ -295,14 +295,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ActivatePremiumRequest"
+              $ref: "#/components/schemas/AddCreditsRequest"
       responses:
         "200":
-          description: Plano atualizado
+          description: Creditos adicionados
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ActivatePremiumResponse"
+                $ref: "#/components/schemas/AddCreditsResponse"
         "400":
           description: Erro de validacao
           content:
@@ -373,6 +373,14 @@ components:
         requestsPerDay:
           type: integer
           minimum: 1
+    ApiKeyCredits:
+      type: object
+      required:
+        - remaining
+      properties:
+        remaining:
+          type: integer
+          format: int64
     ApiKeyCreateRequest:
       type: object
       required:
@@ -403,6 +411,7 @@ components:
         - plan
         - limits
         - createdAt
+        - credits
       properties:
         id:
           type: string
@@ -424,6 +433,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
     ApiKeyResponse:
       type: object
       required:
@@ -434,6 +445,7 @@ components:
         - limits
         - createdAt
         - status
+        - credits
       properties:
         id:
           type: string
@@ -455,6 +467,8 @@ components:
           format: date-time
         status:
           $ref: "#/components/schemas/ApiKeyStatus"
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
     ApiKeyRotateResponse:
       type: object
       required:
@@ -495,6 +509,7 @@ components:
         - plan
         - limits
         - createdAt
+        - credits
       properties:
         id:
           type: string
@@ -512,32 +527,39 @@ components:
         createdAt:
           type: string
           format: date-time
-    ActivatePremiumRequest:
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
+    AddCreditsRequest:
       type: object
       required:
-        - plan
+        - credits
       properties:
         apiKey:
           type: string
         apiKeyHash:
           type: string
-        plan:
-          $ref: "#/components/schemas/Plan"
-        limits:
-          $ref: "#/components/schemas/ApiKeyLimits"
-    ActivatePremiumResponse:
+        credits:
+          type: integer
+          format: int64
+          minimum: 1
+    AddCreditsResponse:
       type: object
       required:
-        - id
+        - apiKeyId
+        - creditsAdded
+        - creditsRemaining
         - plan
-        - limits
       properties:
-        id:
+        apiKeyId:
           type: string
+        creditsAdded:
+          type: integer
+          format: int64
+        creditsRemaining:
+          type: integer
+          format: int64
         plan:
           $ref: "#/components/schemas/Plan"
-        limits:
-          $ref: "#/components/schemas/ApiKeyLimits"
     QuotaReason:
       type: string
       enum:
@@ -591,6 +613,8 @@ components:
           $ref: "#/components/schemas/QuotaUsage"
         upgrade:
           $ref: "#/components/schemas/QuotaUpgradeHint"
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"
     QuotaRefundRequest:
       type: object
       required:
@@ -663,6 +687,7 @@ components:
         - plan
         - limits
         - usage
+        - credits
       properties:
         apiKeyId:
           type: string
@@ -672,3 +697,5 @@ components:
           $ref: "#/components/schemas/ApiKeyLimits"
         usage:
           $ref: "#/components/schemas/QuotaUsage"
+        credits:
+          $ref: "#/components/schemas/ApiKeyCredits"

@@ -9,6 +9,7 @@ public record CreateFreeKeyResponse(
     String orgName,
     Plan plan,
     ApiKeyLimits limits,
-    Instant createdAt
+    Instant createdAt,
+    ApiKeyCredits credits
 ) {
 }

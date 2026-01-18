@@ -74,7 +74,8 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
     putIfNotNull(data, "referenceId", charge.referenceId());
     putIfNotNull(data, "apiKeyHash", charge.apiKeyHash());
     putIfNotNull(data, "apiKeyPrefix", charge.apiKeyPrefix());
-    putIfNotNull(data, "plan", charge.plan());
+    putIfNotNull(data, "packageName", charge.packageName());
+    putIfNotNull(data, "credits", charge.credits());
     putIfNotNull(data, "amountCents", charge.amountCents());
     putIfNotNull(data, "description", charge.description());
     putIfNotNull(data, "statusCharge", charge.statusCharge());
@@ -86,7 +87,7 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
     putIfNotNull(data, "updatedAt", toTimestamp(charge.updatedAt()));
     putIfNotNull(data, "expiresAt", toTimestamp(charge.expiresAt()));
     putIfNotNull(data, "paidAt", toTimestamp(charge.paidAt()));
-    putIfNotNull(data, "premiumActivated", charge.premiumActivated());
+    putIfNotNull(data, "creditsApplied", charge.creditsApplied());
     return data;
   }
 
@@ -101,12 +102,21 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
     if (!StringUtils.hasText(chargeId)) {
       chargeId = snapshot.getId();
     }
+    String packageName = snapshot.getString("packageName");
+    if (!StringUtils.hasText(packageName)) {
+      packageName = snapshot.getString("plan");
+    }
+    Boolean creditsApplied = snapshot.getBoolean("creditsApplied");
+    if (creditsApplied == null) {
+      creditsApplied = snapshot.getBoolean("premiumActivated");
+    }
     return new BillingCharge(
         chargeId,
         snapshot.getString("referenceId"),
         snapshot.getString("apiKeyHash"),
         snapshot.getString("apiKeyPrefix"),
-        snapshot.getString("plan"),
+        packageName,
+        toLong(snapshot.get("credits")),
         toInteger(snapshot.get("amountCents")),
         snapshot.getString("description"),
         snapshot.getString("statusCharge"),
@@ -118,13 +128,20 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
         snapshot.getString("pixCopyPaste"),
         snapshot.getString("qrCodeBase64"),
         toInstant(snapshot.getTimestamp("paidAt")),
-        snapshot.getBoolean("premiumActivated")
+        creditsApplied
     );
   }
 
   private Integer toInteger(Object value) {
     if (value instanceof Number number) {
       return number.intValue();
+    }
+    return null;
+  }
+
+  private Long toLong(Object value) {
+    if (value instanceof Number number) {
+      return number.longValue();
     }
     return null;
   }
