@@ -8,6 +8,11 @@ API_KEY="${API_KEY:-}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 SMOKE_SHOW_JSON="${SMOKE_SHOW_JSON:-0}"
 SMOKE_SUMMARY="${SMOKE_SUMMARY:-0}"
+SHOW_JSON="${SHOW_JSON:-}"
+
+if [ -n "$SHOW_JSON" ]; then
+  SMOKE_SHOW_JSON="$SHOW_JSON"
+fi
 
 TOKENS_FILE="/tmp/apipratudo-cloud/tokens.env"
 API_KEY_FILE="/tmp/apipratudo-cloud/api_key"

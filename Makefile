@@ -23,7 +23,7 @@ smoke-cloud-summary:
 	SMOKE_SUMMARY=1 ./scripts/smoke-cloud.sh
 
 smoke-cloud-json:
-	SMOKE_SHOW_JSON=1 ./scripts/smoke-cloud.sh
+	SHOW_JSON=1 ./scripts/smoke-cloud.sh
 
 help:
 	@echo "Targets disponiveis:"
