@@ -175,18 +175,16 @@ public class BillingService {
       String webhookSecret,
       String traceId
   ) {
-    if (!StringUtils.hasText(webhookProperties.getSecret()) ||
-        !StringUtils.hasText(webhookSecret) ||
-        !webhookProperties.getSecret().equals(webhookSecret)) {
-      return WebhookResult.unauthorized("Missing or invalid X-Webhook-Secret");
-    }
+    boolean secretOk = StringUtils.hasText(webhookProperties.getSecret())
+        && StringUtils.hasText(webhookSecret)
+        && webhookProperties.getSecret().equals(webhookSecret);
 
     if (isFormWebhook(contentType, signature)) {
       return new WebhookResult(true, HttpStatus.OK.value(), null, "form_ack", null);
     }
 
     boolean signatureOk = verifySignature(rawBody, signature);
-    if (!signatureOk) {
+    if (!signatureOk && !secretOk) {
       if (pagBankProperties.isWebhookStrict()) {
         return WebhookResult.unauthorized("Invalid x-authenticity-token signature");
       }
