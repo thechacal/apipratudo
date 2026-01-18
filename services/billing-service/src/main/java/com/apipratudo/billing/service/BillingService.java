@@ -135,6 +135,10 @@ public class BillingService {
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Charge not found"));
 
     if (Boolean.TRUE.equals(existing.paid())) {
+      if (!Boolean.TRUE.equals(existing.premiumActivated())) {
+        activatePremiumIfNeeded(existing, traceId);
+        existing = repository.findById(chargeId).orElse(existing);
+      }
       return toStatusResponse(existing);
     }
 
