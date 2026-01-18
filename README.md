@@ -88,13 +88,25 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 - X-Internal-Token: dev-internal
 
 ## Como obter API key (FREE)
+Fluxo publico via gateway (sem X-Api-Key). A chave so aparece uma vez na resposta.
+
 ```bash
 curl -s -X POST http://localhost:8080/v1/keys/request \
   -H 'Content-Type: application/json' \
   -d '{"email":"teste@exemplo.com","org":"Acme","useCase":"integracao resultados"}' | jq
 ```
 
-## Limites e upgrade Premium via PIX
+## Limites FREE vs PREMIUM
+- FREE (padrao): 30 req/min, 200 req/dia
+- PREMIUM (padrao): 600 req/min, 50000 req/dia
+- Configuravel via env no quota-service (`app.plans.*`)
+
+## Preco PREMIUM
+- Padrao: R$ 49,00 (`PREMIUM_PRICE_CENTS=4900` no developer-portal-service)
+
+## Upgrade Premium via PIX
+Ao estourar a quota, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED` e instrucao de upgrade.
+
 ```bash
 curl -s -X POST http://localhost:8080/v1/keys/upgrade \
   -H "X-Api-Key: $API_KEY" \
@@ -106,6 +118,11 @@ curl -s -X POST http://localhost:8080/v1/keys/upgrade \
 curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
   -H "X-Api-Key: $API_KEY" | jq
 ```
+
+Depois do pagamento PIX:
+- webhook PagBank confirma a cobranca no billing-service
+- billing-service ativa PREMIUM no quota-service
+- /v1/keys/status passa a retornar `plan=PREMIUM`
 
 ## Curls minimos (admin)
 ```bash
