@@ -87,6 +87,12 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 - X-Admin-Token: dev-admin
 - X-Internal-Token: dev-internal
 
+## Comece gratis em menos de 1 minuto
+1. Abra o Swagger: http://localhost:8080/docs (em prod: https://<gateway-url>/docs)
+2. Solicite sua API key gratuita em POST /v1/keys/request
+3. Use a key para testar os endpoints
+4. Ao atingir o limite FREE, faca upgrade via PIX
+
 ## Como obter API key (FREE)
 Fluxo publico via gateway (sem X-Api-Key). A chave so aparece uma vez na resposta.
 
@@ -96,15 +102,18 @@ curl -s -X POST http://localhost:8080/v1/keys/request \
   -d '{"email":"teste@exemplo.com","org":"Acme","useCase":"integracao resultados"}' | jq
 ```
 
-## Limites FREE vs PREMIUM
-- FREE (padrao): 30 req/min, 200 req/dia
-- PREMIUM (padrao): 600 req/min, 50000 req/dia
-- Configuravel via env no quota-service (`app.plans.*`)
+## Limites e upgrade
+Plano FREE:
+- 30 req/min
+- 200 req/dia
+- gratuito
 
-## Preco PREMIUM
-- Padrao: R$ 49,00 (`PREMIUM_PRICE_CENTS=4900` no developer-portal-service)
+Plano PREMIUM:
+- 600 req/min
+- 50000 req/dia
+- R$ 49,00 por mes (padrao)
+- Upgrade via PIX, automatico, sem contato humano
 
-## Upgrade Premium via PIX
 Ao estourar a quota, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED` e instrucao de upgrade.
 
 ```bash

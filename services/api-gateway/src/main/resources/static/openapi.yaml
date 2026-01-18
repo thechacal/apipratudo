@@ -30,7 +30,7 @@ paths:
   /v1/keys/request:
     post:
       summary: Solicitar API key FREE
-      description: Endpoint publico para solicitar uma chave FREE.
+      description: "Solicita uma API key gratuita (plano FREE). Este endpoint e publico e nao requer autenticacao. Use este passo para testar a API gratuitamente. Em caso de indisponibilidade temporaria, a API retornara 503."
       tags:
         - keys
       security: []
@@ -59,6 +59,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Servico temporariamente indisponivel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                unavailable:
+                  value:
+                    error: PORTAL_UNAVAILABLE
+                    message: Servico de criacao de chaves temporariamente indisponivel
+                    traceId: "7ae7227c333ebc2cbf8bfaf0dfb46f33"
   /v1/keys/status:
     get:
       summary: Status da API key
