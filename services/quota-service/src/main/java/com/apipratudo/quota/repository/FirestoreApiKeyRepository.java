@@ -131,7 +131,10 @@ public class FirestoreApiKeyRepository implements ApiKeyRepository {
     String planRaw = snapshot.getString("plan");
     Plan plan = planRaw == null ? Plan.FREE : Plan.valueOf(planRaw);
 
-    Map<String, Object> limitsRaw = snapshot.get("limits", Map.class);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> limitsRaw = snapshot.get("limits") instanceof Map<?, ?>
+        ? (Map<String, Object>) snapshot.get("limits")
+        : null;
     ApiKeyLimits limits = new ApiKeyLimits(
         toInt(limitsRaw, "requestsPerMinute"),
         toInt(limitsRaw, "requestsPerDay")
