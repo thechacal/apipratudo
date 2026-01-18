@@ -123,7 +123,7 @@ class QuotaEnforcementFilterTest {
             .header("X-Api-Key", "rate-key"))
         .andExpect(status().isPaymentRequired())
         .andExpect(jsonPath("$.error").value("QUOTA_EXCEEDED"))
-        .andExpect(jsonPath("$.message").value("Cota esgotada. Recarregue para continuar."))
+        .andExpect(jsonPath("$.message").value("Cota esgotada. Recarregue creditos para continuar."))
         .andExpect(jsonPath("$.upgrade.endpoint").value("/v1/keys/upgrade"))
         .andExpect(jsonPath("$.upgrade.docs").value("/docs"));
   }

@@ -1,6 +1,7 @@
 package com.apipratudo.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -112,7 +113,8 @@ class BillingControllerTest {
         .andExpect(jsonPath("$.status").value("CREATED"))
         .andExpect(jsonPath("$.amountCents").value(4900))
         .andExpect(jsonPath("$.amount").value("R$ 49,00"))
-        .andExpect(jsonPath("$.credits").value(50000))
+        .andExpect(jsonPath("$.creditsAdded").value(50000))
+        .andExpect(jsonPath("$.creditsBalanceAfter").value(nullValue()))
         .andExpect(jsonPath("$.packageName").value("START"))
         .andExpect(jsonPath("$.pixCopyPaste").value("000201"))
         .andExpect(jsonPath("$.qrCodeBase64").value("BASE64DATA"));
@@ -137,6 +139,7 @@ class BillingControllerTest {
         apiKeyHash.substring(0, 8),
         "START",
         50000L,
+        null,
         4900,
         "Pacote START",
         null,
@@ -156,7 +159,7 @@ class BillingControllerTest {
       @Override
       public MockResponse dispatch(RecordedRequest request) {
         if ("POST".equals(request.getMethod()) && "/v1/credits/add".equals(request.getPath())) {
-          return new MockResponse().setResponseCode(200).setBody("{}");
+          return new MockResponse().setResponseCode(200).setBody("{\"creditsRemaining\":50000}");
         }
         return new MockResponse().setResponseCode(404);
       }
@@ -193,6 +196,7 @@ class BillingControllerTest {
         apiKeyHash.substring(0, 8),
         "START",
         50000L,
+        null,
         4900,
         "Pacote START",
         null,
@@ -226,7 +230,7 @@ class BillingControllerTest {
       @Override
       public MockResponse dispatch(RecordedRequest request) {
         if ("POST".equals(request.getMethod()) && "/v1/credits/add".equals(request.getPath())) {
-          return new MockResponse().setResponseCode(200).setBody("{}");
+          return new MockResponse().setResponseCode(200).setBody("{\"creditsRemaining\":123}");
         }
         return new MockResponse().setResponseCode(404);
       }
@@ -237,6 +241,8 @@ class BillingControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.chargeId").value("order-789"))
         .andExpect(jsonPath("$.paid").value(true))
+        .andExpect(jsonPath("$.creditsAdded").value(50000))
+        .andExpect(jsonPath("$.creditsBalanceAfter").value(123))
         .andExpect(jsonPath("$.creditsApplied").value(true));
 
     RecordedRequest pagbankRequest = pagbankServer.takeRequest(1, TimeUnit.SECONDS);

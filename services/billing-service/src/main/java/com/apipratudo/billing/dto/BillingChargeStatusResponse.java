@@ -5,7 +5,8 @@ public record BillingChargeStatusResponse(
     String status,
     boolean paid,
     String packageName,
-    long credits,
+    long creditsAdded,
+    Long creditsBalanceAfter,
     boolean creditsApplied
 ) {
 }

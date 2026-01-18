@@ -108,15 +108,16 @@ Plano FREE:
 - 200 req/dia
 - gratuito
 
-Pacotes de creditos (sem mensalidade):
+Pacotes de creditos (pagamento por consumo, sem assinatura recorrente):
 - START: R$ 19,90 -> 50.000 creditos
 - PRO: R$ 49,90 -> 200.000 creditos
 - SCALE: R$ 99,90 -> 500.000 creditos
 
-Enquanto credits.remaining > 0:
-- usa limites PREMIUM (rpm alto, sem bloqueio diario)
-Quando credits.remaining = 0:
-- volta automaticamente para FREE
+Regras de consumo:
+- Pagamento compra creditos (nao ha plano por periodo)
+- Creditos nao tem validade temporal
+- Enquanto credits.remaining > 0: usa limites PREMIUM (rpm alto, sem bloqueio diario)
+- Quando credits.remaining = 0: volta automaticamente para FREE
 
 Ao estourar a quota FREE ou acabar os creditos, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED`
 e instrucao de recarga.
@@ -136,7 +137,7 @@ curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
 Depois do pagamento PIX:
 - webhook PagBank confirma a cobranca no billing-service
 - billing-service adiciona creditos no quota-service
-- /v1/keys/status retorna `credits.remaining` e `plan=PREMIUM` enquanto houver creditos
+- /v1/keys/status retorna `credits.remaining` e `plan=PREMIUM` (derivado) enquanto houver creditos
 
 ## Curls minimos (admin)
 ```bash

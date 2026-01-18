@@ -84,7 +84,7 @@ public class QuotaService {
           decision.remaining(),
           decision.resetAt(),
           "QUOTA_EXCEEDED",
-          "Cota esgotada. Recarregue para continuar.",
+          "Cota esgotada. Recarregue creditos para continuar.",
           model.plan(),
           model.limits(),
           usage,

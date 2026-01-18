@@ -9,6 +9,7 @@ public record BillingCharge(
     String apiKeyPrefix,
     String packageName,
     Long credits,
+    Long creditsBalanceAfter,
     Integer amountCents,
     String description,
     String statusCharge,

@@ -76,6 +76,7 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
     putIfNotNull(data, "apiKeyPrefix", charge.apiKeyPrefix());
     putIfNotNull(data, "packageName", charge.packageName());
     putIfNotNull(data, "credits", charge.credits());
+    putIfNotNull(data, "creditsBalanceAfter", charge.creditsBalanceAfter());
     putIfNotNull(data, "amountCents", charge.amountCents());
     putIfNotNull(data, "description", charge.description());
     putIfNotNull(data, "statusCharge", charge.statusCharge());
@@ -117,6 +118,7 @@ public class FirestoreBillingChargeRepository implements BillingChargeRepository
         snapshot.getString("apiKeyPrefix"),
         packageName,
         toLong(snapshot.get("credits")),
+        toLong(snapshot.get("creditsBalanceAfter")),
         toInteger(snapshot.get("amountCents")),
         snapshot.getString("description"),
         snapshot.getString("statusCharge"),

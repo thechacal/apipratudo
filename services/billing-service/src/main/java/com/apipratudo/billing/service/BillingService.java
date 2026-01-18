@@ -105,6 +105,7 @@ public class BillingService {
         apiKeyPrefix,
         packageName,
         request.credits(),
+        null,
         request.amountCents(),
         request.description(),
         null,
@@ -126,8 +127,9 @@ public class BillingService {
         statusTop,
         request.amountCents(),
         amountFormatted,
-        request.credits(),
         packageName,
+        request.credits(),
+        null,
         expiresAtRaw,
         pixCopyPaste,
         qrBase64
@@ -158,6 +160,7 @@ public class BillingService {
         existing.apiKeyPrefix(),
         existing.packageName(),
         existing.credits(),
+        existing.creditsBalanceAfter(),
         existing.amountCents(),
         existing.description(),
         statusCharge,
@@ -225,6 +228,7 @@ public class BillingService {
           existing == null ? null : existing.apiKeyPrefix(),
           existing == null ? null : existing.packageName(),
           existing == null ? null : existing.credits(),
+          existing == null ? null : existing.creditsBalanceAfter(),
           existing == null ? null : existing.amountCents(),
           existing == null ? null : existing.description(),
           statusCharge,
@@ -263,8 +267,15 @@ public class BillingService {
     boolean creditsApplied = Boolean.TRUE.equals(charge.creditsApplied());
     String status = StringUtils.hasText(charge.statusCharge()) ? charge.statusCharge() : charge.statusTop();
     long credits = charge.credits() == null ? 0 : charge.credits();
-    return new BillingChargeStatusResponse(charge.chargeId(), status, paid, charge.packageName(), credits,
-        creditsApplied);
+    return new BillingChargeStatusResponse(
+        charge.chargeId(),
+        status,
+        paid,
+        charge.packageName(),
+        credits,
+        charge.creditsBalanceAfter(),
+        creditsApplied
+    );
   }
 
   private String normalizePackageName(String packageName) {
@@ -454,6 +465,7 @@ public class BillingService {
         firstNonBlank(update.apiKeyPrefix(), existing.apiKeyPrefix()),
         firstNonBlank(update.packageName(), existing.packageName()),
         update.credits() != null ? update.credits() : existing.credits(),
+        update.creditsBalanceAfter() != null ? update.creditsBalanceAfter() : existing.creditsBalanceAfter(),
         update.amountCents() != null ? update.amountCents() : existing.amountCents(),
         firstNonBlank(update.description(), existing.description()),
         firstNonBlank(update.statusCharge(), existing.statusCharge()),
@@ -494,7 +506,11 @@ public class BillingService {
     }
 
     try {
-      quotaClient.addCredits(charge.apiKeyHash(), credits, traceId);
+      QuotaClient.AddCreditsResult result = quotaClient.addCredits(charge.apiKeyHash(), credits, traceId);
+      Long balanceAfter = result == null ? null : result.creditsRemaining();
+      if (balanceAfter == null) {
+        balanceAfter = charge.creditsBalanceAfter();
+      }
       BillingCharge updated = new BillingCharge(
           charge.chargeId(),
           charge.referenceId(),
@@ -502,6 +518,7 @@ public class BillingService {
           charge.apiKeyPrefix(),
           charge.packageName(),
           charge.credits(),
+          balanceAfter,
           charge.amountCents(),
           charge.description(),
           charge.statusCharge(),

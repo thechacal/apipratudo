@@ -100,7 +100,7 @@ paths:
   /v1/keys/upgrade:
     post:
       summary: Gerar cobranca PIX de pacotes de creditos
-      description: "Compra pacotes de creditos (sem mensalidade). Enquanto credits.remaining > 0, usa limites PREMIUM. Ao zerar, volta para FREE."
+      description: "Compra pacotes de creditos (sem assinatura recorrente). Enquanto credits.remaining > 0, usa limites PREMIUM. Ao zerar, volta para FREE."
       tags:
         - keys
       security:
@@ -1010,7 +1010,10 @@ components:
           type: integer
         amount:
           type: string
-        credits:
+        creditsAdded:
+          type: integer
+          format: int64
+        creditsBalanceAfter:
           type: integer
           format: int64
         packageName:
@@ -1036,7 +1039,10 @@ components:
           type: boolean
         packageName:
           type: string
-        credits:
+        creditsAdded:
+          type: integer
+          format: int64
+        creditsBalanceAfter:
           type: integer
           format: int64
         creditsApplied:

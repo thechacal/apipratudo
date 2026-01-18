@@ -1,6 +1,8 @@
 package com.apipratudo.billing.client;
 
 import com.apipratudo.billing.config.QuotaClientProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -14,14 +16,16 @@ public class QuotaClient {
   private final WebClient webClient;
   private final Duration timeout;
   private final String internalToken;
+  private final ObjectMapper objectMapper;
 
-  public QuotaClient(WebClient.Builder builder, QuotaClientProperties properties) {
+  public QuotaClient(WebClient.Builder builder, QuotaClientProperties properties, ObjectMapper objectMapper) {
     this.webClient = builder.baseUrl(properties.getBaseUrl()).build();
     this.timeout = Duration.ofMillis(properties.getTimeoutMs());
     this.internalToken = properties.getInternalToken();
+    this.objectMapper = objectMapper;
   }
 
-  public void addCredits(String apiKeyHash, long credits, String traceId) {
+  public AddCreditsResult addCredits(String apiKeyHash, long credits, String traceId) {
     if (!StringUtils.hasText(apiKeyHash)) {
       throw new IllegalArgumentException("Missing apiKeyHash for credits");
     }
@@ -59,8 +63,28 @@ public class QuotaClient {
     if (result.statusCode() < 200 || result.statusCode() >= 300) {
       throw new IllegalStateException("Quota service credits failed status=" + result.statusCode());
     }
+    return new AddCreditsResult(parseCreditsRemaining(result.body()));
   }
 
   public record ClientResult(int statusCode, String body) {
+  }
+
+  public record AddCreditsResult(Long creditsRemaining) {
+  }
+
+  private Long parseCreditsRemaining(String body) {
+    if (!StringUtils.hasText(body)) {
+      return null;
+    }
+    try {
+      JsonNode node = objectMapper.readTree(body);
+      JsonNode value = node.get("creditsRemaining");
+      if (value != null && value.isNumber()) {
+        return value.longValue();
+      }
+    } catch (Exception ignored) {
+      // best effort parsing
+    }
+    return null;
   }
 }

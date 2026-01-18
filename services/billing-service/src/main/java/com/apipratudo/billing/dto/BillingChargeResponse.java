@@ -5,8 +5,9 @@ public record BillingChargeResponse(
     String status,
     int amountCents,
     String amount,
-    long credits,
     String packageName,
+    long creditsAdded,
+    Long creditsBalanceAfter,
     String expiresAt,
     String pixCopyPaste,
     String qrCodeBase64
