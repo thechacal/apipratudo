@@ -27,6 +27,128 @@ paths:
                   value:
                     service: api-gateway
                     status: ok
+  /v1/keys/request:
+    post:
+      summary: Solicitar API key FREE
+      description: Endpoint publico para solicitar uma chave FREE.
+      tags:
+        - keys
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyRequest"
+      responses:
+        "201":
+          description: API key criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyRequestResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Limite de solicitacoes excedido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/keys/status:
+    get:
+      summary: Status da API key
+      tags:
+        - keys
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Status atual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaStatusResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/keys/upgrade:
+    post:
+      summary: Gerar cobranca PIX do plano premium
+      tags:
+        - keys
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyUpgradeRequest"
+      responses:
+        "201":
+          description: Cobranca criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingChargeResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/keys/upgrade/{chargeId}:
+    get:
+      summary: Status da cobranca PIX
+      tags:
+        - keys
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: chargeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status da cobranca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingChargeStatusResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/webhooks:
     post:
       summary: Cadastro de webhook
@@ -741,6 +863,143 @@ components:
         traceId:
           type: string
           example: 4bf92f3577b34da6a3ce929d0e0e4736
+    Plan:
+      type: string
+      enum:
+        - FREE
+        - PREMIUM
+    ApiKeyLimits:
+      type: object
+      required:
+        - requestsPerMinute
+        - requestsPerDay
+      properties:
+        requestsPerMinute:
+          type: integer
+          minimum: 1
+        requestsPerDay:
+          type: integer
+          minimum: 1
+    QuotaWindowStatus:
+      type: object
+      required:
+        - limit
+        - used
+        - remaining
+        - resetAt
+      properties:
+        limit:
+          type: integer
+          format: int64
+        used:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int64
+        resetAt:
+          type: string
+          format: date-time
+    QuotaUsage:
+      type: object
+      required:
+        - minute
+        - day
+      properties:
+        minute:
+          $ref: "#/components/schemas/QuotaWindowStatus"
+        day:
+          $ref: "#/components/schemas/QuotaWindowStatus"
+    QuotaStatusResponse:
+      type: object
+      required:
+        - apiKeyId
+        - plan
+        - limits
+        - usage
+      properties:
+        apiKeyId:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        usage:
+          $ref: "#/components/schemas/QuotaUsage"
+    KeyRequest:
+      type: object
+      required:
+        - email
+        - org
+      properties:
+        email:
+          type: string
+          format: email
+        org:
+          type: string
+        useCase:
+          type: string
+    KeyRequestResponse:
+      type: object
+      required:
+        - apiKey
+        - plan
+        - limits
+        - docsUrl
+        - gatewayUrl
+      properties:
+        apiKey:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        docsUrl:
+          type: string
+        gatewayUrl:
+          type: string
+    KeyUpgradeRequest:
+      type: object
+      required:
+        - plan
+      properties:
+        plan:
+          type: string
+          example: PREMIUM
+    BillingChargeResponse:
+      type: object
+      required:
+        - chargeId
+        - status
+        - pixCopyPaste
+      properties:
+        chargeId:
+          type: string
+        status:
+          type: string
+        expiresAt:
+          type: string
+        pixCopyPaste:
+          type: string
+        qrCodeBase64:
+          type: string
+    BillingChargeStatusResponse:
+      type: object
+      required:
+        - chargeId
+        - status
+        - paid
+      properties:
+        chargeId:
+          type: string
+        status:
+          type: string
+        paid:
+          type: boolean
+        plan:
+          type: string
+        premiumActivated:
+          type: boolean
     FederalPremio:
       type: object
       required:

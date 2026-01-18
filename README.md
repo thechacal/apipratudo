@@ -3,8 +3,8 @@
 Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco em consumo por terceiros com quotas.
 
 ## Servicos
-- Implementados: api-gateway, quota-service, webhook-service, federal-results-service, lotofacil-results-service, megasena-results-service, quina-results-service, lotomania-results-service, timemania-results-service, duplasena-results-service, loteca-results-service, diadesorte-results-service, supersete-results-service, maismilionaria-results-service
-- Planejados: file-service, cep-service, developer-portal
+- Implementados: api-gateway, quota-service, webhook-service, developer-portal-service, billing-service, federal-results-service, lotofacil-results-service, megasena-results-service, quina-results-service, lotomania-results-service, timemania-results-service, duplasena-results-service, loteca-results-service, diadesorte-results-service, supersete-results-service, maismilionaria-results-service
+- Planejados: file-service, cep-service
 
 ## Implementado ate agora
 - api-gateway como entrada /v1, exigindo X-Api-Key nas rotas publicas (exceto /v1/echo e docs).
@@ -16,6 +16,8 @@ Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco 
 - Fallback automatico para InMemory quando Firestore nao esta disponivel.
 - Calculo consistente de janelas minute/day e status alinhado ao consume.
 - Servicos de resultados da CAIXA expostos pelo gateway (/v1/*/resultado-oficial).
+- developer-portal-service publico para solicitar API key FREE e iniciar upgrade via PIX.
+- billing-service interno com cobranca PIX PagBank e ativacao de plano PREMIUM.
 
 ## Lottery Results Services (via gateway)
 Endpoints (usar X-Api-Key):
@@ -53,6 +55,7 @@ make smoke-cloud-json
 ```bash
 ADMIN_TOKEN=... make smoke-cloud
 API_KEY=... make smoke-cloud
+SHOW_JSON=1 ./scripts/smoke-cloud.sh
 ```
 
 ## Arquitetura
@@ -84,7 +87,27 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 - X-Admin-Token: dev-admin
 - X-Internal-Token: dev-internal
 
-## Curls minimos
+## Como obter API key (FREE)
+```bash
+curl -s -X POST http://localhost:8080/v1/keys/request \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"teste@exemplo.com","org":"Acme","useCase":"integracao resultados"}' | jq
+```
+
+## Limites e upgrade Premium via PIX
+```bash
+curl -s -X POST http://localhost:8080/v1/keys/upgrade \
+  -H "X-Api-Key: $API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"plan":"PREMIUM"}' | jq
+```
+
+```bash
+curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
+  -H "X-Api-Key: $API_KEY" | jq
+```
+
+## Curls minimos (admin)
 ```bash
 # 1) criar API key (copie o campo apiKey do response)
 curl -X POST http://localhost:8081/v1/api-keys \

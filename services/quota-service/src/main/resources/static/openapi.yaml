@@ -210,16 +210,17 @@ paths:
   /v1/quota/status:
     get:
       summary: Status de quota
-      description: Endpoint interno/admin para ver uso atual.
+      description: Endpoint interno/admin ou via X-Api-Key para ver uso atual.
       tags:
         - quota
       security:
         - AdminToken: []
         - InternalToken: []
+        - ApiKeyAuth: []
       parameters:
         - name: apiKey
           in: query
-          required: true
+          required: false
           schema:
             type: string
       responses:
@@ -229,6 +230,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QuotaStatusResponse"
+        "401":
+          description: Token invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: API key nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/internal/keys/create-free:
+    post:
+      summary: Criar API key FREE
+      description: Endpoint interno para o portal solicitar uma chave FREE.
+      tags:
+        - api-keys
+      security:
+        - PortalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFreeKeyRequest"
+      responses:
+        "201":
+          description: API key FREE criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateFreeKeyResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token portal invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Limite de criacao de chaves excedido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/subscriptions/activate-premium:
+    post:
+      summary: Ativar plano premium
+      description: Endpoint interno/admin para atualizar o plano da API key.
+      tags:
+        - subscriptions
+      security:
+        - AdminToken: []
+        - InternalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivatePremiumRequest"
+      responses:
+        "200":
+          description: Plano atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivatePremiumResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Token invalido
           content:
@@ -251,6 +331,14 @@ components:
       type: apiKey
       in: header
       name: X-Internal-Token
+    PortalToken:
+      type: apiKey
+      in: header
+      name: X-Portal-Token
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
   schemas:
     ErrorResponse:
       type: object
@@ -267,7 +355,12 @@ components:
       type: string
       enum:
         - ACTIVE
-        - DISABLED
+        - SUSPENDED
+    Plan:
+      type: string
+      enum:
+        - FREE
+        - PREMIUM
     ApiKeyLimits:
       type: object
       required:
@@ -291,6 +384,13 @@ components:
           type: string
         owner:
           type: string
+        ownerEmail:
+          type: string
+          format: email
+        orgName:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
         limits:
           $ref: "#/components/schemas/ApiKeyLimits"
     ApiKeyCreateResponse:
@@ -300,6 +400,7 @@ components:
         - apiKey
         - name
         - owner
+        - plan
         - limits
         - createdAt
       properties:
@@ -311,6 +412,13 @@ components:
           type: string
         owner:
           type: string
+        ownerEmail:
+          type: string
+          format: email
+        orgName:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
         limits:
           $ref: "#/components/schemas/ApiKeyLimits"
         createdAt:
@@ -322,6 +430,7 @@ components:
         - id
         - name
         - owner
+        - plan
         - limits
         - createdAt
         - status
@@ -332,6 +441,13 @@ components:
           type: string
         owner:
           type: string
+        ownerEmail:
+          type: string
+          format: email
+        orgName:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
         limits:
           $ref: "#/components/schemas/ApiKeyLimits"
         createdAt:
@@ -356,11 +472,78 @@ components:
       properties:
         status:
           $ref: "#/components/schemas/ApiKeyStatus"
+    CreateFreeKeyRequest:
+      type: object
+      required:
+        - email
+        - org
+      properties:
+        email:
+          type: string
+          format: email
+        org:
+          type: string
+        useCase:
+          type: string
+    CreateFreeKeyResponse:
+      type: object
+      required:
+        - id
+        - apiKey
+        - ownerEmail
+        - orgName
+        - plan
+        - limits
+        - createdAt
+      properties:
+        id:
+          type: string
+        apiKey:
+          type: string
+        ownerEmail:
+          type: string
+          format: email
+        orgName:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        createdAt:
+          type: string
+          format: date-time
+    ActivatePremiumRequest:
+      type: object
+      required:
+        - plan
+      properties:
+        apiKey:
+          type: string
+        apiKeyHash:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+    ActivatePremiumResponse:
+      type: object
+      required:
+        - id
+        - plan
+        - limits
+      properties:
+        id:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
     QuotaReason:
       type: string
       enum:
         - INVALID_KEY
         - RATE_LIMITED
+        - QUOTA_EXCEEDED
     QuotaConsumeRequest:
       type: object
       required:
@@ -396,6 +579,18 @@ components:
         resetAt:
           type: string
           format: date-time
+        error:
+          type: string
+        message:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        usage:
+          $ref: "#/components/schemas/QuotaUsage"
+        upgrade:
+          $ref: "#/components/schemas/QuotaUpgradeHint"
     QuotaRefundRequest:
       type: object
       required:
@@ -444,16 +639,36 @@ components:
         resetAt:
           type: string
           format: date-time
-    QuotaStatusResponse:
+    QuotaUsage:
       type: object
       required:
-        - apiKeyId
         - minute
         - day
       properties:
-        apiKeyId:
-          type: string
         minute:
           $ref: "#/components/schemas/QuotaWindowStatus"
         day:
           $ref: "#/components/schemas/QuotaWindowStatus"
+    QuotaUpgradeHint:
+      type: object
+      properties:
+        endpoint:
+          type: string
+        method:
+          type: string
+    QuotaStatusResponse:
+      type: object
+      required:
+        - apiKeyId
+        - plan
+        - limits
+        - usage
+      properties:
+        apiKeyId:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        limits:
+          $ref: "#/components/schemas/ApiKeyLimits"
+        usage:
+          $ref: "#/components/schemas/QuotaUsage"
