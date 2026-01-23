@@ -4,7 +4,6 @@ Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco 
 
 ## Servicos
 - Implementados: api-gateway, quota-service, webhook-service, developer-portal-service, billing-service, federal-results-service, lotofacil-results-service, megasena-results-service, quina-results-service, lotomania-results-service, timemania-results-service, duplasena-results-service, loteca-results-service, diadesorte-results-service, supersete-results-service, maismilionaria-results-service
-- Planejados: file-service, cep-service
 
 ## Implementado ate agora
 - api-gateway como entrada /v1, exigindo X-Api-Key nas rotas publicas (exceto /v1/echo e docs).
