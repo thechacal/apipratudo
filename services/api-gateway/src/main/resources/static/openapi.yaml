@@ -162,6 +162,290 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/clientes:
+    post:
+      summary: Criar cliente
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 201.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerCreateRequest"
+      responses:
+        "201":
+          description: Cliente criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/clientes/{id}:
+    get:
+      summary: Obter cliente
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cliente encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cliente nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/cobrancas:
+    post:
+      summary: Criar cobranca
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 201.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargeCreateRequest"
+      responses:
+        "201":
+          description: Cobranca criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cliente nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/cobrancas/{id}:
+    get:
+      summary: Obter cobranca
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cobranca encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/cobrancas/{id}/status:
+    get:
+      summary: Status da cobranca
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status da cobranca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeStatusResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/pix/gerar:
+    post:
+      summary: Gerar PIX para cobranca
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PixGenerateRequest"
+      responses:
+        "200":
+          description: PIX gerado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PixGenerateResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/pix/webhook:
+    post:
+      summary: Webhook PIX
+      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key.
+      tags:
+        - billing-saas
+      security: []
+      parameters:
+        - name: X-Webhook-Secret
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PixWebhookRequest"
+      responses:
+        "200":
+          description: Webhook processado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PixWebhookResponse"
+        "401":
+          description: Webhook nao autorizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/relatorios:
+    get:
+      summary: Relatorio de cobrancas
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Resumo de cobrancas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportSummaryResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/webhooks:
     post:
       summary: Cadastro de webhook
@@ -1454,3 +1738,298 @@ components:
         capturadoEm:
           type: string
           format: date-time
+    ChargeStatus:
+      type: string
+      enum:
+        - CREATED
+        - PIX_GENERATED
+        - PENDING
+        - PAID
+        - EXPIRED
+        - CANCELED
+    CustomerCreateRequest:
+      type: object
+      required:
+        - name
+        - document
+        - email
+        - phone
+      properties:
+        name:
+          type: string
+          example: Cliente ACME
+        document:
+          type: string
+          example: "12345678900"
+        email:
+          type: string
+          example: financeiro@acme.com
+        phone:
+          type: string
+          example: "+5511999999999"
+        externalId:
+          type: string
+          example: "erp-123"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CustomerResponse:
+      type: object
+      required:
+        - id
+        - name
+        - document
+        - email
+        - phone
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: cus_123
+        name:
+          type: string
+        document:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        externalId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    RecurrenceRequest:
+      type: object
+      required:
+        - frequency
+      properties:
+        frequency:
+          type: string
+          enum:
+            - MONTHLY
+        interval:
+          type: integer
+          minimum: 1
+          example: 1
+        dayOfMonth:
+          type: integer
+          minimum: 1
+          maximum: 31
+          example: 10
+    ChargeCreateRequest:
+      type: object
+      required:
+        - customerId
+        - amountCents
+        - dueDate
+      properties:
+        customerId:
+          type: string
+          example: cus_123
+        amountCents:
+          type: integer
+          format: int64
+          example: 1990
+        currency:
+          type: string
+          example: BRL
+        description:
+          type: string
+          example: Mensalidade
+        dueDate:
+          type: string
+          format: date
+          example: "2026-01-31"
+        recurrence:
+          $ref: "#/components/schemas/RecurrenceRequest"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    ChargeResponse:
+      type: object
+      required:
+        - id
+        - customerId
+        - amountCents
+        - currency
+        - dueDate
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: chg_123
+        customerId:
+          type: string
+        amountCents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        description:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        recurrence:
+          $ref: "#/components/schemas/RecurrenceRequest"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        status:
+          $ref: "#/components/schemas/ChargeStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        paidAt:
+          type: string
+          format: date-time
+        pix:
+          $ref: "#/components/schemas/PixDataResponse"
+    ChargeStatusResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          example: chg_123
+        status:
+          $ref: "#/components/schemas/ChargeStatus"
+        paidAt:
+          type: string
+          format: date-time
+        pix:
+          $ref: "#/components/schemas/PixDataResponse"
+    PixGenerateRequest:
+      type: object
+      required:
+        - chargeId
+      properties:
+        chargeId:
+          type: string
+          example: chg_123
+        expiresInSeconds:
+          type: integer
+          minimum: 60
+          example: 3600
+    PixGenerateResponse:
+      type: object
+      required:
+        - chargeId
+        - status
+        - pix
+      properties:
+        chargeId:
+          type: string
+        status:
+          $ref: "#/components/schemas/ChargeStatus"
+        pix:
+          $ref: "#/components/schemas/PixDataResponse"
+        whatsappLink:
+          type: string
+          format: uri
+    PixWebhookRequest:
+      type: object
+      required:
+        - provider
+        - providerChargeId
+        - event
+      properties:
+        provider:
+          type: string
+          example: FAKE
+        providerChargeId:
+          type: string
+          example: fake_123
+        event:
+          type: string
+          example: PAID
+        paidAt:
+          type: string
+          format: date-time
+    PixWebhookResponse:
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          example: true
+    PixDataResponse:
+      type: object
+      required:
+        - provider
+        - providerChargeId
+        - txid
+        - pixCopyPaste
+        - qrCodeBase64
+        - expiresAt
+      properties:
+        provider:
+          type: string
+          example: FAKE
+        providerChargeId:
+          type: string
+        txid:
+          type: string
+        pixCopyPaste:
+          type: string
+        qrCodeBase64:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    ReportSummaryResponse:
+      type: object
+      required:
+        - from
+        - to
+        - countTotal
+        - countPaid
+        - countPending
+        - totalCents
+        - paidCents
+        - pendingCents
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        countTotal:
+          type: integer
+          format: int64
+        countPaid:
+          type: integer
+          format: int64
+        countPending:
+          type: integer
+          format: int64
+        totalCents:
+          type: integer
+          format: int64
+        paidCents:
+          type: integer
+          format: int64
+        pendingCents:
+          type: integer
+          format: int64

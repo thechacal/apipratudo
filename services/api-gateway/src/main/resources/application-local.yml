@@ -9,6 +9,9 @@ webhook:
   service-token: dev-service-token
 portal:
   base-url: http://localhost:8094
+billing-saas:
+  base-url: http://localhost:8096
+  service-token: dev-billing-saas-token
 federal:
   base-url: http://localhost:8083
 lotofacil:

@@ -33,6 +33,7 @@ class QuotaEnforcementFilterTest {
 
   private static MockWebServer quotaServer;
   private static MockWebServer webhookServer;
+  private static MockWebServer billingSaasServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -77,6 +78,18 @@ class QuotaEnforcementFilterTest {
     registry.add("webhook.base-url", () -> webhookServer.url("/").toString());
     registry.add("webhook.timeout-ms", () -> 2000);
     registry.add("webhook.service-token", () -> "test-service");
+
+    if (billingSaasServer == null) {
+      billingSaasServer = new MockWebServer();
+      try {
+        billingSaasServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start billing-saas mock server", e);
+      }
+    }
+    registry.add("billing-saas.base-url", () -> billingSaasServer.url("/").toString());
+    registry.add("billing-saas.timeout-ms", () -> 2000);
+    registry.add("billing-saas.service-token", () -> "test-billing-saas");
   }
 
   @AfterAll
@@ -86,6 +99,9 @@ class QuotaEnforcementFilterTest {
     }
     if (webhookServer != null) {
       webhookServer.shutdown();
+    }
+    if (billingSaasServer != null) {
+      billingSaasServer.shutdown();
     }
   }
 
@@ -102,6 +118,12 @@ class QuotaEnforcementFilterTest {
     }
     while (webhookServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
       // drain webhook requests to keep tests isolated
+    }
+    if (billingSaasServer == null) {
+      return;
+    }
+    while (billingSaasServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+      // drain billing-saas requests to keep tests isolated
     }
   }
 
@@ -171,5 +193,36 @@ class QuotaEnforcementFilterTest {
 
     RecordedRequest refundRequest = quotaServer.takeRequest(200, TimeUnit.MILLISECONDS);
     assertThat(refundRequest).isNull();
+  }
+
+  @Test
+  void pixWebhookBypassesQuota() throws Exception {
+    billingSaasServer.enqueue(new MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "application/json")
+        .setBody("{\"ok\":true}"));
+
+    mockMvc.perform(post("/v1/pix/webhook")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("X-Webhook-Secret", "test-secret")
+            .content("{\"provider\":\"FAKE\",\"providerChargeId\":\"fake-1\",\"event\":\"PAID\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    RecordedRequest quotaRequest = quotaServer.takeRequest(200, TimeUnit.MILLISECONDS);
+    assertThat(quotaRequest).isNull();
+
+    RecordedRequest webhookRequest = billingSaasServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(webhookRequest).isNotNull();
+    assertThat(webhookRequest.getPath()).isEqualTo("/internal/pix/webhook");
+    assertThat(webhookRequest.getHeader("X-Service-Token")).isEqualTo("test-billing-saas");
+    assertThat(webhookRequest.getHeader("X-Webhook-Secret")).isEqualTo("test-secret");
+  }
+
+  @Test
+  void pixWebhookGetStillRequiresApiKey() throws Exception {
+    mockMvc.perform(get("/v1/pix/webhook"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
   }
 }

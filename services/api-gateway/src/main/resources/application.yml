@@ -21,6 +21,11 @@ portal:
   base-url: ${PORTAL_BASE_URL:http://localhost:8094}
   timeout-ms: ${PORTAL_TIMEOUT_MS:3000}
 
+billing-saas:
+  base-url: ${BILLING_SAAS_BASE_URL:http://localhost:8096}
+  timeout-ms: ${BILLING_SAAS_TIMEOUT_MS:3000}
+  service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
+
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
   timeout-ms: ${FEDERAL_TIMEOUT_MS:60000}

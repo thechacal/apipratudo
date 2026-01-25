@@ -29,6 +29,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
   private static final String KEYS_REQUEST_PATH = "/v1/keys/request";
   private static final String KEYS_STATUS_PATH = "/v1/keys/status";
   private static final String KEYS_UPGRADE_PREFIX = "/v1/keys/upgrade";
+  private static final String PIX_WEBHOOK_PATH = "/v1/pix/webhook";
 
   private final QuotaClient quotaClient;
   private final ObjectMapper objectMapper;
@@ -48,6 +49,9 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       return true;
     }
     if ("/v1/echo".equals(path)) {
+      return true;
+    }
+    if ("POST".equalsIgnoreCase(request.getMethod()) && PIX_WEBHOOK_PATH.equals(path)) {
       return true;
     }
     return path.startsWith(KEYS_REQUEST_PATH);
