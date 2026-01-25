@@ -132,17 +132,61 @@ if [[ "${code}" != "200" ]]; then
   exit 1
 fi
 provider_charge_id=$(printf '%s' "${body}" | json_get 'pix.providerChargeId')
+provider=$(printf '%s' "${body}" | json_get 'pix.provider')
 echo "providerChargeId=${provider_charge_id}"
 
-echo "== Calling webhook (PAID)"
-resp=$(request POST "${GW_URL}/v1/pix/webhook" "{\"provider\":\"FAKE\",\"providerChargeId\":\"${provider_charge_id}\",\"event\":\"PAID\"}" \
-  -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: ${WEBHOOK_SECRET}")
-code=$(printf '%s' "${resp}" | head -n1)
-body=$(printf '%s' "${resp}" | tail -n +2)
-if [[ "${code}" != "200" ]]; then
-  echo "Failed to call webhook: ${code} ${body}"
-  exit 1
+if [[ "${provider}" == "PAGBANK" ]]; then
+  echo "== PIX gerado via PagBank"
+  echo "Webhook real do PagBank exige endpoint publico e nao e simulado automaticamente."
+  if [[ "${SIMULATE_PAID:-}" == "true" ]]; then
+    echo "SIMULATE_PAID=true: enviando webhook PagBank simulado (apenas para testes locais)."
+    webhook_body="{\"id\":\"${provider_charge_id}\",\"status\":\"PAID\"}"
+    export WEBHOOK_BODY="${webhook_body}"
+    signature=$(python - <<'PY'
+import hashlib, os
+token = os.environ.get("PAGBANK_WEBHOOK_TOKEN") or os.environ.get("PAGBANK_TOKEN") or ""
+payload = os.environ.get("WEBHOOK_BODY", "")
+data = (token + "-" + payload).encode()
+print(hashlib.sha256(data).hexdigest())
+PY
+)
+    resp=$(request POST "${GW_URL}/v1/pix/webhook" "${webhook_body}" \
+      -H "Content-Type: application/json" \
+      -H "X-Webhook-Secret: ${WEBHOOK_SECRET}" \
+      -H "X-Authenticity-Token: ${signature}")
+    code=$(printf '%s' "${resp}" | head -n1)
+    body=$(printf '%s' "${resp}" | tail -n +2)
+    if [[ "${code}" != "200" ]]; then
+      echo "Failed to call webhook: ${code} ${body}"
+      exit 1
+    fi
+  else
+    echo "Para confirmar o pagamento, realize o PIX e aguarde o webhook real."
+    resp=$(request GET "${GW_URL}/v1/cobrancas/${charge_id}/status" "" \
+      -H "Accept: application/json" \
+      -H "X-Api-Key: ${api_key}")
+    code=$(printf '%s' "${resp}" | head -n1)
+    body=$(printf '%s' "${resp}" | tail -n +2)
+    if [[ "${code}" != "200" ]]; then
+      echo "Failed to get charge status: ${code} ${body}"
+      exit 1
+    fi
+    status=$(printf '%s' "${body}" | json_get 'status')
+    echo "status=${status}"
+    echo "Smoke OK (PagBank sem webhook)"
+    exit 0
+  fi
+else
+  echo "== Calling webhook (PAID)"
+  resp=$(request POST "${GW_URL}/v1/pix/webhook" "{\"provider\":\"FAKE\",\"providerChargeId\":\"${provider_charge_id}\",\"event\":\"PAID\"}" \
+    -H "Content-Type: application/json" \
+    -H "X-Webhook-Secret: ${WEBHOOK_SECRET}")
+  code=$(printf '%s' "${resp}" | head -n1)
+  body=$(printf '%s' "${resp}" | tail -n +2)
+  if [[ "${code}" != "200" ]]; then
+    echo "Failed to call webhook: ${code} ${body}"
+    exit 1
+  fi
 fi
 
 echo "== Checking charge status"

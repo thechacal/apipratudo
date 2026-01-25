@@ -1,13 +1,11 @@
 package com.apipratudo.gateway.billingsaas.dto;
 
-import java.time.Instant;
-
 public class PagbankStatusResponse {
 
   private boolean connected;
   private String environment;
-  private Instant lastVerifiedAt;
   private String fingerprint;
+  private java.time.Instant updatedAt;
 
   public boolean isConnected() {
     return connected;
@@ -25,19 +23,19 @@ public class PagbankStatusResponse {
     this.environment = environment;
   }
 
-  public Instant getLastVerifiedAt() {
-    return lastVerifiedAt;
-  }
-
-  public void setLastVerifiedAt(Instant lastVerifiedAt) {
-    this.lastVerifiedAt = lastVerifiedAt;
-  }
-
   public String getFingerprint() {
     return fingerprint;
   }
 
   public void setFingerprint(String fingerprint) {
     this.fingerprint = fingerprint;
+  }
+
+  public java.time.Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setUpdatedAt(java.time.Instant updatedAt) {
+    this.updatedAt = updatedAt;
   }
 }

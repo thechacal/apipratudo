@@ -7,19 +7,28 @@ import com.apipratudo.billingsaas.model.Charge;
 import com.apipratudo.billingsaas.model.ChargeStatus;
 import com.apipratudo.billingsaas.model.PixData;
 import com.apipratudo.billingsaas.model.PixProviderIndex;
+import com.apipratudo.billingsaas.model.Recurrence;
+import com.apipratudo.billingsaas.model.RecurrenceFrequency;
 import com.apipratudo.billingsaas.repository.ChargeStore;
 import com.apipratudo.billingsaas.repository.PixProviderIndexStore;
 import com.apipratudo.billingsaas.service.PagbankProviderService;
 import com.apipratudo.billingsaas.service.PixWebhookService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PixWebhookServiceTest {
 
@@ -34,6 +43,9 @@ class PixWebhookServiceTest {
 
   @Autowired
   private PagbankProviderService pagbankProviderService;
+
+  @Autowired
+  private MockMvc mockMvc;
 
   @Test
   void pagbankWebhookValidSignatureMarksPaid() {
@@ -118,6 +130,71 @@ class PixWebhookServiceTest {
     PixWebhookService.WebhookResult result = pixWebhookService.handle(raw, "application/json", "invalid");
     assertThat(result.ok()).isFalse();
     assertThat(result.status()).isEqualTo(401);
+  }
+
+  @Test
+  void webhookWithWrongSecretReturns401() throws Exception {
+    mockMvc.perform(post("/internal/pix/webhook")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("X-Webhook-Secret", "wrong-secret")
+            .content("{\"provider\":\"FAKE\",\"providerChargeId\":\"fake\",\"event\":\"PAID\"}"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void pagbankWebhookRepeatedDoesNotCreateExtraRecurrence() {
+    String tenantId = "tenant-recorrencia";
+    String token = "token-recorrencia";
+
+    PagbankConnectRequest connect = new PagbankConnectRequest();
+    connect.setToken(token);
+    connect.setEnvironment("SANDBOX");
+    pagbankProviderService.connect(tenantId, connect);
+
+    String chargeId = "chg-recorrencia";
+    String providerChargeId = "order-recorrencia";
+    Recurrence recurrence = new Recurrence(RecurrenceFrequency.MONTHLY, 1, null);
+    PixData pixData = new PixData("PAGBANK", providerChargeId, "tx-r", "copia", "qr", Instant.now());
+    Charge charge = new Charge(
+        chargeId,
+        "cus-1",
+        2990,
+        "BRL",
+        "Plano recorrente",
+        LocalDate.of(2026, 1, 31),
+        recurrence,
+        Map.of(),
+        ChargeStatus.PIX_GENERATED,
+        Instant.now(),
+        Instant.now(),
+        null,
+        pixData,
+        providerChargeId,
+        tenantId
+    );
+    chargeStore.save(tenantId, charge);
+    pixProviderIndexStore.save(new PixProviderIndex("PAGBANK", providerChargeId, tenantId, chargeId, Instant.now()));
+
+    String payload = "{\"id\":\"" + providerChargeId + "\",\"status\":\"PAID\"}";
+    byte[] raw = payload.getBytes(StandardCharsets.UTF_8);
+    String signature = signature(token, raw);
+
+    pixWebhookService.handle(raw, "application/json", signature);
+    int firstCount = chargeStore.findByCreatedAtBetween(
+        tenantId,
+        Instant.EPOCH,
+        Instant.now().plusSeconds(3600)
+    ).size();
+
+    pixWebhookService.handle(raw, "application/json", signature);
+    int secondCount = chargeStore.findByCreatedAtBetween(
+        tenantId,
+        Instant.EPOCH,
+        Instant.now().plusSeconds(3600)
+    ).size();
+
+    assertThat(firstCount).isEqualTo(2);
+    assertThat(secondCount).isEqualTo(2);
   }
 
   private String signature(String token, byte[] raw) {

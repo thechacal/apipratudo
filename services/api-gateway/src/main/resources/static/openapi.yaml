@@ -449,7 +449,7 @@ paths:
   /v1/pix/webhook:
     post:
       summary: Webhook PIX
-      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key. Aceita payload FAKE e PagBank.
+      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key. Aceita payload FAKE e PagBank. Para PagBank, enviar tambem X-Authenticity-Token.
       tags:
         - billing-saas
       security: []
@@ -457,6 +457,12 @@ paths:
         - name: X-Webhook-Secret
           in: header
           required: true
+          schema:
+            type: string
+        - name: X-Authenticity-Token
+          in: header
+          required: false
+          description: Assinatura PagBank (quando usar payload PagBank).
           schema:
             type: string
       requestBody:
@@ -1846,12 +1852,12 @@ components:
         environment:
           type: string
           example: SANDBOX
-        lastVerifiedAt:
-          type: string
-          format: date-time
         fingerprint:
           type: string
           example: deadbeef
+        updatedAt:
+          type: string
+          format: date-time
     CustomerCreateRequest:
       type: object
       required:

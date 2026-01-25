@@ -36,6 +36,11 @@ public class ApiExceptionHandler {
     return error(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", ex.getMessage(), request, ex);
   }
 
+  @ExceptionHandler(ConfigurationException.class)
+  public ResponseEntity<ErrorResponse> configuration(ConfigurationException ex, HttpServletRequest request) {
+    return error(HttpStatus.INTERNAL_SERVER_ERROR, "CONFIG_ERROR", ex.getMessage(), request, ex);
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> internal(Exception ex, HttpServletRequest request) {
     return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected error", request, ex);

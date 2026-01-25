@@ -1,6 +1,7 @@
 package com.apipratudo.billingsaas.crypto;
 
 import com.apipratudo.billingsaas.config.CryptoProperties;
+import com.apipratudo.billingsaas.error.ConfigurationException;
 import com.apipratudo.billingsaas.model.EncryptedValue;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -19,11 +20,12 @@ public class CryptoService {
   private static final int IV_BYTES = 12;
   private static final int TAG_BITS = 128;
 
-  private final SecretKey masterKey;
+  private final String masterKeyBase64;
+  private volatile SecretKey masterKey;
   private final SecureRandom random = new SecureRandom();
 
   public CryptoService(CryptoProperties properties) {
-    this.masterKey = loadKey(properties.getMasterKeyBase64());
+    this.masterKeyBase64 = properties.getMasterKeyBase64();
   }
 
   public EncryptedValue encrypt(String plaintext, String aad) {
@@ -53,23 +55,43 @@ public class CryptoService {
   private byte[] doCipher(int mode, byte[] input, byte[] iv, String aad) {
     try {
       Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-      cipher.init(mode, masterKey, new GCMParameterSpec(TAG_BITS, iv));
+      cipher.init(mode, resolveKey(), new GCMParameterSpec(TAG_BITS, iv));
       if (StringUtils.hasText(aad)) {
         cipher.updateAAD(aad.getBytes(StandardCharsets.UTF_8));
       }
       return cipher.doFinal(input);
+    } catch (ConfigurationException ex) {
+      throw ex;
     } catch (Exception ex) {
       throw new IllegalStateException("Encryption failure", ex);
     }
   }
 
+  private SecretKey resolveKey() {
+    if (masterKey != null) {
+      return masterKey;
+    }
+    synchronized (this) {
+      if (masterKey != null) {
+        return masterKey;
+      }
+      masterKey = loadKey(masterKeyBase64);
+      return masterKey;
+    }
+  }
+
   private SecretKey loadKey(String base64) {
     if (!StringUtils.hasText(base64)) {
-      throw new IllegalStateException("BILLING_SAAS_MASTER_KEY_BASE64 not configured");
+      throw new ConfigurationException("BILLING_SAAS_MASTER_KEY_BASE64 ausente ou vazia");
     }
-    byte[] keyBytes = Base64.getDecoder().decode(base64);
+    byte[] keyBytes;
+    try {
+      keyBytes = Base64.getDecoder().decode(base64);
+    } catch (IllegalArgumentException ex) {
+      throw new ConfigurationException("BILLING_SAAS_MASTER_KEY_BASE64 invalida (base64)", ex);
+    }
     if (keyBytes.length != 32) {
-      throw new IllegalStateException("BILLING_SAAS_MASTER_KEY_BASE64 must be 32 bytes");
+      throw new ConfigurationException("BILLING_SAAS_MASTER_KEY_BASE64 invalida (esperado 32 bytes)");
     }
     return new SecretKeySpec(keyBytes, "AES");
   }

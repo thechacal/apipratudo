@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.apipratudo.billingsaas.config.CryptoProperties;
 import com.apipratudo.billingsaas.crypto.CryptoService;
+import com.apipratudo.billingsaas.error.ConfigurationException;
 import com.apipratudo.billingsaas.model.EncryptedValue;
 import org.junit.jupiter.api.Test;
 
@@ -32,5 +33,27 @@ class CryptoServiceTest {
 
     assertThatThrownBy(() -> service.decrypt(encrypted, "other:PAGBANK"))
         .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  void invalidBase64KeyFailsWithClearMessage() {
+    CryptoProperties props = new CryptoProperties();
+    props.setMasterKeyBase64("not-base64");
+    CryptoService service = new CryptoService(props);
+
+    assertThatThrownBy(() -> service.encrypt("segredo", "tenant:PAGBANK"))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("base64");
+  }
+
+  @Test
+  void invalidLengthKeyFailsWithClearMessage() {
+    CryptoProperties props = new CryptoProperties();
+    props.setMasterKeyBase64("MDEyMzQ1Njc4OWFiY2RlZg==");
+    CryptoService service = new CryptoService(props);
+
+    assertThatThrownBy(() -> service.encrypt("segredo", "tenant:PAGBANK"))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("32 bytes");
   }
 }

@@ -68,8 +68,8 @@ public class PagbankProviderService {
     PagbankProviderConfig config = existing.get();
     response.setConnected(config.enabled());
     response.setEnvironment(config.environment() == null ? null : config.environment().name());
-    response.setLastVerifiedAt(config.lastVerifiedAt());
     response.setFingerprint(config.fingerprint());
+    response.setUpdatedAt(config.updatedAt());
     return response;
   }
 

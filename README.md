@@ -139,6 +139,14 @@ Este repo nao tem reactor root. Todos os comandos devem usar `-f services/<modul
 Variaveis adicionais (timeouts, colecoes, base URLs de resultados) estao em `application.yml` de cada servico.
 Para evitar confusao de tokens: `X-Internal-Token` e validado no quota-service, `X-Portal-Token` e enviado pelo portal, e o gateway envia `QUOTA_INTERNAL_TOKEN` para consumir/refund quota.
 
+Gerar chave mestra AES-256-GCM:
+```bash
+python - <<'PY'
+import os, base64
+print(base64.b64encode(os.urandom(32)).decode())
+PY
+```
+
 ### Minimo para rodar local (stack minimo)
 
 #### quota-service
@@ -253,6 +261,10 @@ export PAGBANK_ENV=SANDBOX
 GW_URL=http://localhost:8080 WEBHOOK_SECRET=changeme ./scripts/smoke-billing-saas.sh
 ```
 
+No modo FAKE, o smoke completa o fluxo com webhook PAID simulado.
+No modo PagBank, o smoke valida criacao do PIX (copy/paste e QR), mas a confirmacao depende do webhook real do PagBank.
+Para simulacao explicita, use `SIMULATE_PAID=true` junto do token do tenant.
+
 ## Como usar como cliente (SaaS + API)
 
 ### Fluxo de chave e creditos (API publica)
@@ -288,6 +300,8 @@ curl -s -X POST http://localhost:8080/v1/provedores/pagbank/conectar \
   -H "X-Api-Key: SUA_API_KEY" \
   -d '{"token":"PAGBANK_TOKEN","webhookToken":"PAGBANK_WEBHOOK_TOKEN","environment":"SANDBOX"}'
 ```
+
+Requer `BILLING_SAAS_MASTER_KEY_BASE64` valido no billing-saas-service.
 
 ```bash
 curl -s http://localhost:8080/v1/provedores/pagbank/status \
@@ -350,6 +364,7 @@ curl -s "http://localhost:8080/v1/relatorios?from=2026-01-01&to=2026-01-31" \
 - Use `Idempotency-Key` em POSTs mutaveis para evitar duplicacao.
 - Respostas do PIX retornam `pixCopyPaste`, `qrCodeBase64` e `whatsappLink`.
 - Tokens PagBank de tenants devem ser enviados apenas via `/v1/provedores/pagbank/conectar` e nunca versionados.
+- Webhook PagBank real exige `X-Webhook-Secret` e `X-Authenticity-Token` validos e endpoint publico.
 
 ## Producao (Cloud Run / Docker / Firestore)
 
