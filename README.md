@@ -35,6 +35,7 @@ API Pra Tudo e uma plataforma de APIs em Java/Spring Boot com contrato publico e
 - Cliente cria seus clientes e cobrancas via API.
 - Gera PIX, recebe webhook, consulta status e relatorios.
 - Recorrencia mensal: ao receber `PAID`, a proxima cobranca e gerada automaticamente.
+- Modelo B: cada tenant conecta seu proprio PagBank; o PIX cai na conta do tenant.
 
 ## Arquitetura (alto nivel)
 
@@ -71,10 +72,12 @@ API Pra Tudo e uma plataforma de APIs em Java/Spring Boot com contrato publico e
 - Gateway -> billing-saas: `X-Tenant-Id` (SHA-256 hex da API key)
 - Gateway -> billing-saas: `X-Service-Token`
 - Webhook externo -> gateway -> billing-saas: `X-Webhook-Secret`
+- PagBank -> gateway: `X-Webhook-Secret` e `X-Authenticity-Token`
 
 ### Quota e excecao de webhook
 - Quota aplicada pelo gateway em rotas `/v1/*`.
 - Excecao estrita: **somente** `POST /v1/pix/webhook` nao exige `X-Api-Key` e nao consome quota.
+- Endpoints `/v1/provedores/pagbank/*` nao consomem quota, mas exigem `X-Api-Key`.
 
 ## Pre-requisitos (dev)
 
@@ -108,6 +111,13 @@ Este repo nao tem reactor root. Todos os comandos devem usar `-f services/<modul
 | BILLING_SAAS_BASE_URL | api-gateway | base do billing-saas-service | localhost:8096 |
 | BILLING_SAAS_SERVICE_TOKEN | api-gateway, billing-saas-service | X-Service-Token do billing-saas | changeme |
 | BILLING_SAAS_WEBHOOK_SECRET | billing-saas-service | segredo do webhook PIX | changeme |
+| BILLING_SAAS_MASTER_KEY_BASE64 | billing-saas-service | chave AES-GCM (32 bytes base64) | MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= |
+| BILLING_SAAS_PAGBANK_SANDBOX_BASE_URL | billing-saas-service | base PagBank sandbox | sandbox.api.pagseguro.com |
+| BILLING_SAAS_PAGBANK_PRODUCTION_BASE_URL | billing-saas-service | base PagBank producao | api.pagseguro.com |
+| BILLING_SAAS_PAGBANK_NOTIFICATION_URL | billing-saas-service | URL do webhook PIX (gateway) | https://gateway.exemplo.com/v1/pix/webhook |
+| BILLING_SAAS_PAGBANK_QR_TTL_SECONDS | billing-saas-service | TTL do PIX em segundos | 3600 |
+| BILLING_SAAS_PAGBANK_TIMEZONE | billing-saas-service | timezone de expiracao | America/Sao_Paulo |
+| BILLING_SAAS_PAGBANK_TIMEOUT_MS | billing-saas-service | timeout PagBank | 60000 |
 | WEBHOOK_SECRET | billing-service | segredo de webhook PagBank | changeme |
 | PAGBANK_BASE_URL | billing-service | base da API PagBank | sandbox.api.pagseguro.com |
 | PAGBANK_TOKEN | billing-service | token PagBank | changeme |
@@ -155,6 +165,7 @@ mvn -B -ntp -f services/developer-portal-service/pom.xml spring-boot:run
 export APP_FIRESTORE_ENABLED=false
 export BILLING_SAAS_SERVICE_TOKEN=changeme
 export BILLING_SAAS_WEBHOOK_SECRET=changeme
+export BILLING_SAAS_MASTER_KEY_BASE64=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
 mvn -B -ntp -f services/billing-saas-service/pom.xml spring-boot:run
 ```
 
@@ -178,6 +189,7 @@ export PORTAL_TOKEN=changeme
 export PORTAL_BASE_URL=http://localhost:8094
 export BILLING_SAAS_SERVICE_TOKEN=changeme
 export BILLING_SAAS_WEBHOOK_SECRET=changeme
+export BILLING_SAAS_MASTER_KEY_BASE64=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
 export BILLING_SAAS_BASE_URL=http://localhost:8096
 export BILLING_BASE_URL=http://localhost:8095
 export BILLING_SERVICE_TOKEN=changeme
@@ -233,6 +245,14 @@ Dependencias: `curl` e `python`. A API key sai mascarada no output.
 GW_URL=http://localhost:8080 WEBHOOK_SECRET=changeme ./scripts/smoke-billing-saas.sh
 ```
 
+Opcional (Modelo B PagBank por tenant):
+```bash
+export PAGBANK_TOKEN=token-do-tenant
+export PAGBANK_WEBHOOK_TOKEN=token-webhook-do-tenant
+export PAGBANK_ENV=SANDBOX
+GW_URL=http://localhost:8080 WEBHOOK_SECRET=changeme ./scripts/smoke-billing-saas.sh
+```
+
 ## Como usar como cliente (SaaS + API)
 
 ### Fluxo de chave e creditos (API publica)
@@ -260,6 +280,24 @@ curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
 ```
 
 SaaS de cobranca (PIX + recorrencia):
+
+### Conectar PagBank (Modelo B)
+```bash
+curl -s -X POST http://localhost:8080/v1/provedores/pagbank/conectar \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -d '{"token":"PAGBANK_TOKEN","webhookToken":"PAGBANK_WEBHOOK_TOKEN","environment":"SANDBOX"}'
+```
+
+```bash
+curl -s http://localhost:8080/v1/provedores/pagbank/status \
+  -H "X-Api-Key: SUA_API_KEY"
+```
+
+```bash
+curl -s -X DELETE http://localhost:8080/v1/provedores/pagbank/desconectar \
+  -H "X-Api-Key: SUA_API_KEY"
+```
 
 ### Criar cliente (SaaS cobranca)
 ```bash
@@ -311,6 +349,7 @@ curl -s "http://localhost:8080/v1/relatorios?from=2026-01-01&to=2026-01-31" \
 ### Observacoes importantes
 - Use `Idempotency-Key` em POSTs mutaveis para evitar duplicacao.
 - Respostas do PIX retornam `pixCopyPaste`, `qrCodeBase64` e `whatsappLink`.
+- Tokens PagBank de tenants devem ser enviados apenas via `/v1/provedores/pagbank/conectar` e nunca versionados.
 
 ## Producao (Cloud Run / Docker / Firestore)
 
@@ -318,7 +357,11 @@ curl -s "http://localhost:8080/v1/relatorios?from=2026-01-01&to=2026-01-31" \
 - `APP_FIRESTORE_ENABLED=true`
 - `BILLING_SAAS_SERVICE_TOKEN` (forte, gateway -> billing-saas)
 - `BILLING_SAAS_WEBHOOK_SECRET` (forte, webhook externo)
+- `BILLING_SAAS_MASTER_KEY_BASE64` (AES-GCM, 32 bytes base64)
 - `BILLING_SAAS_BASE_URL` (URL do billing-saas)
+- `BILLING_SAAS_PAGBANK_SANDBOX_BASE_URL`, `BILLING_SAAS_PAGBANK_PRODUCTION_BASE_URL`
+- `BILLING_SAAS_PAGBANK_NOTIFICATION_URL` (URL do webhook no gateway)
+- `BILLING_SAAS_PAGBANK_QR_TTL_SECONDS`, `BILLING_SAAS_PAGBANK_TIMEZONE`, `BILLING_SAAS_PAGBANK_TIMEOUT_MS`
 - `QUOTA_INTERNAL_TOKEN` (gateway -> quota)
 - `PORTAL_TOKEN` (portal -> quota)
 - `PORTAL_BASE_URL` (gateway -> portal)

@@ -375,10 +375,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/provedores/pagbank/conectar:
+    post:
+      summary: Conectar PagBank (Modelo B)
+      description: Conecta o PagBank do tenant. Este endpoint nao consome quota.
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PagbankConnectRequest"
+      responses:
+        "200":
+          description: Conexao registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagbankStatusResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/provedores/pagbank/status:
+    get:
+      summary: Status da conexao PagBank
+      description: Retorna se o PagBank esta conectado. Este endpoint nao consome quota.
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Status atual da conexao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagbankStatusResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/provedores/pagbank/desconectar:
+    delete:
+      summary: Desconectar PagBank
+      description: Remove a conexao do PagBank. Este endpoint nao consome quota.
+      tags:
+        - billing-saas
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "204":
+          description: Conexao removida
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/pix/webhook:
     post:
       summary: Webhook PIX
-      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key.
+      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key. Aceita payload FAKE e PagBank.
       tags:
         - billing-saas
       security: []
@@ -1747,6 +1818,40 @@ components:
         - PAID
         - EXPIRED
         - CANCELED
+    PagbankConnectRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: Token do PagBank do tenant.
+        webhookToken:
+          type: string
+          description: Token de webhook do PagBank (opcional).
+        environment:
+          type: string
+          enum:
+            - SANDBOX
+            - PRODUCTION
+          example: SANDBOX
+    PagbankStatusResponse:
+      type: object
+      required:
+        - connected
+      properties:
+        connected:
+          type: boolean
+          example: true
+        environment:
+          type: string
+          example: SANDBOX
+        lastVerifiedAt:
+          type: string
+          format: date-time
+        fingerprint:
+          type: string
+          example: deadbeef
     CustomerCreateRequest:
       type: object
       required:

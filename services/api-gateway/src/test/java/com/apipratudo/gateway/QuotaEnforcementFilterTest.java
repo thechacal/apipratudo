@@ -225,4 +225,28 @@ class QuotaEnforcementFilterTest {
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
   }
+
+  @Test
+  void pagbankConnectBypassesQuotaButRequiresApiKey() throws Exception {
+    billingSaasServer.enqueue(new MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "application/json")
+        .setBody("{\"connected\":true,\"environment\":\"SANDBOX\"}"));
+
+    mockMvc.perform(post("/v1/provedores/pagbank/conectar")
+            .header("X-Api-Key", "api-key-123")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"token\":\"token-123\",\"environment\":\"SANDBOX\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.connected").value(true));
+
+    RecordedRequest quotaRequest = quotaServer.takeRequest(200, TimeUnit.MILLISECONDS);
+    assertThat(quotaRequest).isNull();
+
+    RecordedRequest saasRequest = billingSaasServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(saasRequest).isNotNull();
+    assertThat(saasRequest.getPath()).isEqualTo("/internal/providers/pagbank/connect");
+    assertThat(saasRequest.getHeader("X-Tenant-Id")).isNotBlank();
+    assertThat(saasRequest.getHeader("X-Api-Key")).isNull();
+  }
 }

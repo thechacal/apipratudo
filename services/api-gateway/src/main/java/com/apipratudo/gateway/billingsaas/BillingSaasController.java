@@ -2,6 +2,7 @@ package com.apipratudo.gateway.billingsaas;
 
 import com.apipratudo.gateway.billingsaas.dto.ChargeCreateRequest;
 import com.apipratudo.gateway.billingsaas.dto.CustomerCreateRequest;
+import com.apipratudo.gateway.billingsaas.dto.PagbankConnectRequest;
 import com.apipratudo.gateway.billingsaas.dto.PixGenerateRequest;
 import com.apipratudo.gateway.error.ErrorResponse;
 import com.apipratudo.gateway.idempotency.HashingUtils;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/v1")
@@ -147,11 +150,17 @@ public class BillingSaasController {
   @PostMapping("/pix/webhook")
   public ResponseEntity<?> pixWebhook(
       @RequestHeader(value = "X-Webhook-Secret", required = false) String webhookSecret,
-      @RequestBody String body
+      @RequestBody String body,
+      HttpServletRequest httpRequest
   ) {
     String traceId = traceId();
     try {
-      BillingSaasClient.BillingSaasClientResult result = billingSaasClient.webhook(body, webhookSecret, traceId);
+      BillingSaasClient.BillingSaasClientResult result = billingSaasClient.webhook(
+          body,
+          webhookSecret,
+          traceId,
+          httpRequest.getContentType()
+      );
       return mapWebhookResult(result, traceId);
     } catch (Exception ex) {
       log.warn("Billing SaaS webhook failed traceId={} reason={}", traceId, ex.getMessage());
@@ -170,6 +179,55 @@ public class BillingSaasController {
     try {
       BillingSaasClient.BillingSaasClientResult result = billingSaasClient.report(
           tenantId(apiKey), from, to, traceId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Billing SaaS request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @PostMapping("/provedores/pagbank/conectar")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> connectPagbank(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @Valid @RequestBody PagbankConnectRequest request
+  ) {
+    String traceId = traceId();
+    try {
+      BillingSaasClient.BillingSaasClientResult result = billingSaasClient.connectPagbank(
+          tenantId(apiKey), request, traceId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Billing SaaS request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @GetMapping("/provedores/pagbank/status")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> pagbankStatus(
+      @RequestHeader("X-Api-Key") String apiKey
+  ) {
+    String traceId = traceId();
+    try {
+      BillingSaasClient.BillingSaasClientResult result = billingSaasClient.pagbankStatus(
+          tenantId(apiKey), traceId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Billing SaaS request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @DeleteMapping("/provedores/pagbank/desconectar")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> disconnectPagbank(
+      @RequestHeader("X-Api-Key") String apiKey
+  ) {
+    String traceId = traceId();
+    try {
+      BillingSaasClient.BillingSaasClientResult result = billingSaasClient.disconnectPagbank(
+          tenantId(apiKey), traceId);
       return mapResult(result, traceId);
     } catch (Exception ex) {
       log.warn("Billing SaaS request failed traceId={} reason={}", traceId, ex.getMessage());

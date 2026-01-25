@@ -2,6 +2,7 @@ package com.apipratudo.gateway.billingsaas;
 
 import com.apipratudo.gateway.billingsaas.dto.ChargeCreateRequest;
 import com.apipratudo.gateway.billingsaas.dto.CustomerCreateRequest;
+import com.apipratudo.gateway.billingsaas.dto.PagbankConnectRequest;
 import com.apipratudo.gateway.billingsaas.dto.PixGenerateRequest;
 import java.time.Duration;
 import org.springframework.http.MediaType;
@@ -82,10 +83,10 @@ public class BillingSaasClient {
     return exchange(applyBodyHeaders(spec, tenantId, idempotencyKey, traceId).bodyValue(request));
   }
 
-  public BillingSaasClientResult webhook(String body, String webhookSecret, String traceId) {
+  public BillingSaasClientResult webhook(String body, String webhookSecret, String traceId, String contentType) {
     WebClient.RequestBodySpec spec = webClient.post()
         .uri("/internal/pix/webhook")
-        .contentType(MediaType.APPLICATION_JSON)
+        .contentType(StringUtils.hasText(contentType) ? MediaType.valueOf(contentType) : MediaType.APPLICATION_JSON)
         .accept(MediaType.APPLICATION_JSON);
 
     if (StringUtils.hasText(webhookSecret)) {
@@ -111,6 +112,32 @@ public class BillingSaasClient {
           }
           return uriBuilder.build();
         })
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, null, traceId));
+  }
+
+  public BillingSaasClientResult connectPagbank(
+      String tenantId,
+      PagbankConnectRequest request,
+      String traceId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/internal/providers/pagbank/connect")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, null, traceId).bodyValue(request));
+  }
+
+  public BillingSaasClientResult pagbankStatus(String tenantId, String traceId) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.get()
+        .uri("/internal/providers/pagbank/status")
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, null, traceId));
+  }
+
+  public BillingSaasClientResult disconnectPagbank(String tenantId, String traceId) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.delete()
+        .uri("/internal/providers/pagbank/disconnect")
         .accept(MediaType.APPLICATION_JSON);
     return exchange(applyHeaders(spec, tenantId, null, traceId));
   }

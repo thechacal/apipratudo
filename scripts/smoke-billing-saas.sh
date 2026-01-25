@@ -71,6 +71,27 @@ if [[ ${#api_key} -gt 8 ]]; then
 fi
 echo "apiKey=${masked_key}"
 
+if [[ -n "${PAGBANK_TOKEN:-}" ]]; then
+  echo "== Connecting PagBank"
+  env_name=${PAGBANK_ENV:-SANDBOX}
+  webhook_token_json=""
+  if [[ -n "${PAGBANK_WEBHOOK_TOKEN:-}" ]]; then
+    webhook_token_json=",\"webhookToken\":\"${PAGBANK_WEBHOOK_TOKEN}\""
+  fi
+  payload="{\"token\":\"${PAGBANK_TOKEN}\",\"environment\":\"${env_name}\"${webhook_token_json}}"
+  resp=$(request POST "${GW_URL}/v1/provedores/pagbank/conectar" "${payload}" \
+    -H "Content-Type: application/json" \
+    -H "X-Api-Key: ${api_key}")
+  code=$(printf '%s' "${resp}" | head -n1)
+  body=$(printf '%s' "${resp}" | tail -n +2)
+  if [[ "${code}" != "200" ]]; then
+    echo "Failed to connect PagBank: ${code} ${body}"
+    exit 1
+  fi
+  connected=$(printf '%s' "${body}" | json_get 'connected')
+  echo "pagbankConnected=${connected}"
+fi
+
 echo "== Creating customer"
 resp=$(request POST "${GW_URL}/v1/clientes" '{"name":"Cliente Smoke","document":"12345678900","email":"financeiro@exemplo.com","phone":"+5511999999999"}' \
   -H "Content-Type: application/json" \
