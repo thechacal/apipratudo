@@ -89,36 +89,102 @@ API Pra Tudo e uma plataforma de APIs em Java/Spring Boot com contrato publico e
 
 Este repo nao tem reactor root. Todos os comandos devem usar `-f services/<modulo>/pom.xml`.
 
-### Variaveis de ambiente usadas no local
-- `APP_FIRESTORE_ENABLED=false` (forca InMemory nos stores)
-- `APP_INTERNAL_TOKEN` (quota-service, token interno)
-- `QUOTA_INTERNAL_TOKEN` (api-gateway, token interno para quota)
-- `PORTAL_TOKEN` / `APP_PORTAL_TOKEN` (portal -> quota-service)
-- `QUOTA_BASE_URL` (portal -> quota-service)
-- `BILLING_BASE_URL` (portal -> billing-service)
-- `BILLING_SERVICE_TOKEN` (portal -> billing-service)
-- `BILLING_SAAS_SERVICE_TOKEN` (gateway -> billing-saas)
-- `BILLING_SAAS_WEBHOOK_SECRET` (webhook externo -> billing-saas)
-- `BILLING_SAAS_BASE_URL` (gateway -> billing-saas)
+### Mapa de variaveis (quem usa o que)
 
-### Stack minimo para fluxo completo
-Inclui quota, portal, billing-saas e gateway.
+| Variavel | Servico(s) | Funcao | Exemplo |
+| --- | --- | --- | --- |
+| APP_FIRESTORE_ENABLED | quota, portal, api-gateway, billing-saas, billing-service | alterna Firestore/InMemory | false |
+| APP_FIRESTORE_PROJECT_ID ou GOOGLE_CLOUD_PROJECT | todos os servicos com Firestore | projeto do Firestore | api-pra-tudo |
+| APP_FIRESTORE_EMULATOR_HOST ou FIRESTORE_EMULATOR_HOST | todos os servicos com Firestore | host do emulador | localhost:8089 |
+| APP_ADMIN_TOKEN ou ADMIN_TOKEN | quota-service | token admin (X-Admin-Token) | changeme |
+| APP_INTERNAL_TOKEN ou INTERNAL_TOKEN | quota-service | token interno (X-Internal-Token) | changeme |
+| APP_PORTAL_TOKEN ou PORTAL_TOKEN | quota-service | token do portal (X-Portal-Token) | changeme |
+| QUOTA_INTERNAL_TOKEN | api-gateway | token interno enviado ao quota-service | changeme |
+| QUOTA_BASE_URL | api-gateway, portal, billing-service | base do quota-service | localhost:8081 |
+| PORTAL_BASE_URL | api-gateway | base do developer-portal-service | localhost:8094 |
+| PORTAL_TOKEN | developer-portal-service | usado no X-Portal-Token ao criar key | changeme |
+| BILLING_BASE_URL | developer-portal-service | base do billing-service | localhost:8095 |
+| BILLING_SERVICE_TOKEN | developer-portal-service, billing-service | X-Service-Token do billing-service | changeme |
+| BILLING_SAAS_BASE_URL | api-gateway | base do billing-saas-service | localhost:8096 |
+| BILLING_SAAS_SERVICE_TOKEN | api-gateway, billing-saas-service | X-Service-Token do billing-saas | changeme |
+| BILLING_SAAS_WEBHOOK_SECRET | billing-saas-service | segredo do webhook PIX | changeme |
+| WEBHOOK_SECRET | billing-service | segredo de webhook PagBank | changeme |
+| PAGBANK_BASE_URL | billing-service | base da API PagBank | sandbox.api.pagseguro.com |
+| PAGBANK_TOKEN | billing-service | token PagBank | changeme |
+| PAGBANK_WEBHOOK_TOKEN | billing-service | token de assinatura do webhook PagBank | changeme |
+| PAGBANK_NOTIFICATION_URL | billing-service | URL publica do webhook PagBank | gateway/public-webhook |
+| START_PRICE_CENTS / START_CREDITS | developer-portal-service | pacote START | 1990 / 50000 |
+| PRO_PRICE_CENTS / PRO_CREDITS | developer-portal-service | pacote PRO | 4990 / 200000 |
+| SCALE_PRICE_CENTS / SCALE_CREDITS | developer-portal-service | pacote SCALE | 9990 / 500000 |
+| APP_RATE_LIMIT_IP_RPM | developer-portal-service | rate limit por IP | 10 |
+| APP_RATE_LIMIT_EMAIL_PER_DAY | developer-portal-service | rate limit por email | 1 |
+| APP_RATE_LIMIT_ORG_PER_DAY | developer-portal-service | rate limit por org | 3 |
+| GATEWAY_URL | developer-portal-service | URL do gateway usada nas respostas | localhost:8080 |
+| DOCS_URL | developer-portal-service | URL dos docs usada nas respostas | localhost:8080/docs |
+| APP_PLANS_FREE_REQUESTS_PER_MINUTE | quota-service | limite FREE rpm | 30 |
+| APP_PLANS_FREE_REQUESTS_PER_DAY | quota-service | limite FREE dia | 200 |
+| APP_PLANS_PREMIUM_REQUESTS_PER_MINUTE | quota-service | limite premium rpm | 600 |
+| APP_PLANS_PREMIUM_REQUESTS_PER_DAY | quota-service | limite premium dia | 50000 |
 
+Variaveis adicionais (timeouts, colecoes, base URLs de resultados) estao em `application.yml` de cada servico.
+Para evitar confusao de tokens: `X-Internal-Token` e validado no quota-service, `X-Portal-Token` e enviado pelo portal, e o gateway envia `QUOTA_INTERNAL_TOKEN` para consumir/refund quota.
+
+### Minimo para rodar local (stack minimo)
+
+#### quota-service
+```bash
+export APP_FIRESTORE_ENABLED=false
+export APP_INTERNAL_TOKEN=changeme
+export PORTAL_TOKEN=changeme
+mvn -B -ntp -f services/quota-service/pom.xml spring-boot:run
+```
+
+#### developer-portal-service
+```bash
+export APP_FIRESTORE_ENABLED=false
+export QUOTA_BASE_URL=http://localhost:8081
+export PORTAL_TOKEN=changeme
+# Para usar /v1/keys/upgrade local:
+export BILLING_BASE_URL=http://localhost:8095
+export BILLING_SERVICE_TOKEN=changeme
+mvn -B -ntp -f services/developer-portal-service/pom.xml spring-boot:run
+```
+
+#### billing-saas-service
+```bash
+export APP_FIRESTORE_ENABLED=false
+export BILLING_SAAS_SERVICE_TOKEN=changeme
+export BILLING_SAAS_WEBHOOK_SECRET=changeme
+mvn -B -ntp -f services/billing-saas-service/pom.xml spring-boot:run
+```
+
+#### api-gateway
+```bash
+export QUOTA_BASE_URL=http://localhost:8081
+export QUOTA_INTERNAL_TOKEN=changeme
+export PORTAL_BASE_URL=http://localhost:8094
+export BILLING_SAAS_BASE_URL=http://localhost:8096
+export BILLING_SAAS_SERVICE_TOKEN=changeme
+mvn -B -ntp -f services/api-gateway/pom.xml spring-boot:run
+```
+
+### Exemplo 100% copiavel (stack minimo)
 ```bash
 export APP_FIRESTORE_ENABLED=false
 export APP_INTERNAL_TOKEN=changeme
 export QUOTA_INTERNAL_TOKEN=changeme
+export QUOTA_BASE_URL=http://localhost:8081
 export PORTAL_TOKEN=changeme
-export APP_PORTAL_TOKEN=changeme
+export PORTAL_BASE_URL=http://localhost:8094
 export BILLING_SAAS_SERVICE_TOKEN=changeme
 export BILLING_SAAS_WEBHOOK_SECRET=changeme
-```
+export BILLING_SAAS_BASE_URL=http://localhost:8096
+export BILLING_BASE_URL=http://localhost:8095
+export BILLING_SERVICE_TOKEN=changeme
 
-```bash
 mvn -B -ntp -f services/quota-service/pom.xml spring-boot:run
 mvn -B -ntp -f services/developer-portal-service/pom.xml spring-boot:run
 mvn -B -ntp -f services/billing-saas-service/pom.xml spring-boot:run
-export BILLING_SAAS_BASE_URL=http://localhost:8096
 mvn -B -ntp -f services/api-gateway/pom.xml spring-boot:run
 ```
 
@@ -308,7 +374,8 @@ Nao existe `index.html` dentro deste monorepo, entao o site deve ser editado no 
 ### Como editar
 - Edite `public/index.html` no repo do site.
 - O HTML nao possui comentarios com instrucoes; o deploy esta no `firebase.json`.
-- O sitemap e gerado automaticamente no predeploy a partir dos endpoints listados no HTML.
+- O `firebase.json` possui um `predeploy` que gera `public/sitemap.xml` a partir dos endpoints listados no HTML.
+- Nao existe `.firebaserc` no repo do site (usar `--project` no deploy).
 
 ### Como publicar (Firebase Hosting)
 O arquivo `firebase.json` do site define o predeploy e o diretorio `public`.
@@ -331,3 +398,37 @@ firebase deploy --only hosting --project api-pra-tudo
 - Atualizar o site com CTA e links para docs.
 - Definir limites FREE e pacotes de credito.
 - Ativar canal de suporte (email/whatsapp).
+
+## Go-to-market (pronto pra vender hoje)
+
+### Pitch de 30 segundos
+API Pra Tudo permite que empresas emitam cobrancas PIX e gerenciem recorrencias sem marketplace. A integracao e simples, com webhook seguro, relatorios por periodo e link de WhatsApp pronto para cobrar clientes. Em minutos, sua equipe integra e comeca a emitir cobrancas com rastreio e status em tempo real.
+
+### Planos sugeridos (SaaS de cobranca)
+Sugestao comercial para o produto de cobrancas (nao altera o modelo de creditos da API publica):
+
+- Starter: R$ 199/mes + ate 1.000 cobrancas
+- Pro: R$ 499/mes + ate 5.000 cobrancas
+- Enterprise: volume sob consulta
+
+### Copy pronta
+Landing page (curta):
+```
+Emita cobrancas PIX com recorrencia em minutos.
+API Pra Tudo entrega webhook seguro, relatorios e link de WhatsApp automatico.
+Crie sua chave FREE e comece hoje.
+```
+
+WhatsApp (convite direto):
+```
+Oi! A gente ajuda sua empresa a emitir cobrancas PIX com recorrencia.
+Temos webhook, relatorios e link de WhatsApp pronto. Quer testar?
+```
+
+E-mail (curto):
+```
+Assunto: PIX + recorrencia em minutos
+
+Oi! A API Pra Tudo permite emitir cobrancas PIX com webhook, relatorios e recorrencia.
+Integracao rapida e sem marketplace. Quer uma chave FREE para testar?
+```
