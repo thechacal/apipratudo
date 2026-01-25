@@ -11,12 +11,14 @@ import com.apipratudo.billingsaas.error.ResourceNotFoundException;
 import com.apipratudo.billingsaas.idempotency.IdempotencyTransaction;
 import com.apipratudo.billingsaas.model.Charge;
 import com.apipratudo.billingsaas.model.ChargeStatus;
+import com.apipratudo.billingsaas.model.Customer;
 import com.apipratudo.billingsaas.model.PixData;
 import com.apipratudo.billingsaas.model.PixProviderIndex;
 import com.apipratudo.billingsaas.model.Recurrence;
 import com.apipratudo.billingsaas.model.RecurrenceFrequency;
 import com.apipratudo.billingsaas.model.ReportSummary;
 import com.apipratudo.billingsaas.provider.PixProvider;
+import com.apipratudo.billingsaas.provider.PixProviderSelector;
 import com.apipratudo.billingsaas.repository.ChargeStore;
 import com.apipratudo.billingsaas.repository.CustomerStore;
 import com.apipratudo.billingsaas.repository.PixProviderIndexStore;
@@ -38,20 +40,20 @@ public class ChargeService {
 
   private final ChargeStore chargeStore;
   private final CustomerStore customerStore;
-  private final PixProvider pixProvider;
+  private final PixProviderSelector pixProviderSelector;
   private final PixProviderIndexStore pixProviderIndexStore;
   private final Clock clock;
 
   public ChargeService(
       ChargeStore chargeStore,
       CustomerStore customerStore,
-      PixProvider pixProvider,
+      PixProviderSelector pixProviderSelector,
       PixProviderIndexStore pixProviderIndexStore,
       Clock clock
   ) {
     this.chargeStore = chargeStore;
     this.customerStore = customerStore;
-    this.pixProvider = pixProvider;
+    this.pixProviderSelector = pixProviderSelector;
     this.pixProviderIndexStore = pixProviderIndexStore;
     this.clock = clock;
   }
@@ -100,7 +102,10 @@ public class ChargeService {
     PixData pixData = charge.pix();
     if (pixData == null) {
       long ttl = expiresInSeconds == null ? 3600 : expiresInSeconds;
-      pixData = pixProvider.generatePix(charge, ttl);
+      Customer customer = customerStore.findById(tenantId, charge.customerId())
+          .orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
+      PixProvider provider = pixProviderSelector.select(tenantId);
+      pixData = provider.generatePix(tenantId, charge, customer, ttl);
       Instant now = Instant.now(clock);
       charge = new Charge(
           charge.id(),
@@ -132,10 +137,14 @@ public class ChargeService {
   }
 
   public Charge handleWebhookPaid(PixWebhookRequest request) {
-    if (!pixProvider.providerName().equalsIgnoreCase(request.getProvider())) {
-      throw new IllegalArgumentException("Unsupported provider");
+    return handleWebhookPaid(request.getProvider(), request.getProviderChargeId(), request.getPaidAt());
+  }
+
+  public Charge handleWebhookPaid(String provider, String providerChargeId, Instant paidAt) {
+    if (!StringUtils.hasText(provider) || !StringUtils.hasText(providerChargeId)) {
+      throw new IllegalArgumentException("Missing provider identifiers");
     }
-    Charge charge = resolveChargeByProviderId(request.getProviderChargeId())
+    Charge charge = resolveChargeByProviderId(provider, providerChargeId)
         .orElseThrow(() -> new ResourceNotFoundException("Charge not found"));
 
     if (charge.status() == ChargeStatus.CANCELED || charge.status() == ChargeStatus.EXPIRED) {
@@ -146,7 +155,13 @@ public class ChargeService {
       return charge;
     }
 
-    Instant paidAt = request.getPaidAt() == null ? Instant.now(clock) : request.getPaidAt();
+    PixData pix = charge.pix();
+    if (pix != null && StringUtils.hasText(pix.provider())
+        && !pix.provider().equalsIgnoreCase(provider)) {
+      throw new IllegalArgumentException("Provider mismatch");
+    }
+
+    Instant resolvedPaidAt = paidAt == null ? Instant.now(clock) : paidAt;
     Instant now = Instant.now(clock);
     Charge updated = new Charge(
         charge.id(),
@@ -160,7 +175,7 @@ public class ChargeService {
         ChargeStatus.PAID,
         charge.createdAt(),
         now,
-        paidAt,
+        resolvedPaidAt,
         charge.pix(),
         charge.providerChargeId(),
         charge.tenantId()
@@ -254,10 +269,11 @@ public class ChargeService {
       PixData pixData,
       IdempotencyTransaction transaction
   ) {
-    if (pixData == null || pixData.providerChargeId() == null) {
+    if (pixData == null || pixData.providerChargeId() == null || pixData.provider() == null) {
       return;
     }
     PixProviderIndex index = new PixProviderIndex(
+        pixData.provider(),
         pixData.providerChargeId(),
         tenantId,
         chargeId,
@@ -266,8 +282,8 @@ public class ChargeService {
     pixProviderIndexStore.save(index, transaction);
   }
 
-  private Optional<Charge> resolveChargeByProviderId(String providerChargeId) {
-    Optional<PixProviderIndex> index = pixProviderIndexStore.findByProviderChargeId(providerChargeId);
+  private Optional<Charge> resolveChargeByProviderId(String provider, String providerChargeId) {
+    Optional<PixProviderIndex> index = pixProviderIndexStore.findByProviderChargeId(provider, providerChargeId);
     if (index.isPresent()) {
       PixProviderIndex resolved = index.get();
       return chargeStore.findById(resolved.tenantId(), resolved.chargeId());

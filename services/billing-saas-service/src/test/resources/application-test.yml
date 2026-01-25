@@ -7,3 +7,5 @@ app:
     secret: test-webhook-secret
   idempotency:
     ttl-seconds: 3600
+  crypto:
+    master-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

@@ -1,6 +1,7 @@
 package com.apipratudo.billingsaas.provider;
 
 import com.apipratudo.billingsaas.model.Charge;
+import com.apipratudo.billingsaas.model.Customer;
 import com.apipratudo.billingsaas.model.PixData;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -19,7 +20,7 @@ public class FakePixProvider implements PixProvider {
   }
 
   @Override
-  public PixData generatePix(Charge charge, long expiresInSeconds) {
+  public PixData generatePix(String tenantId, Charge charge, Customer customer, long expiresInSeconds) {
     Instant now = Instant.now(clock);
     long safeTtl = expiresInSeconds > 0 ? expiresInSeconds : 3600;
     Instant expiresAt = now.plusSeconds(safeTtl);

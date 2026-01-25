@@ -31,7 +31,7 @@ public class FirestorePixProviderIndexStore implements PixProviderIndexStore {
     Map<String, Object> data = toDocument(index);
     try {
       firestore.collection(properties.getCollections().getPixProviderIndex())
-          .document(index.providerChargeId())
+          .document(key(index.provider(), index.providerChargeId()))
           .set(data)
           .get();
     } catch (InterruptedException e) {
@@ -49,18 +49,18 @@ public class FirestorePixProviderIndexStore implements PixProviderIndexStore {
     if (transaction.isNoop()) {
       return save(index);
     }
-    transaction.set(properties.getCollections().getPixProviderIndex(), index.providerChargeId(), data);
+    transaction.set(properties.getCollections().getPixProviderIndex(), key(index.provider(), index.providerChargeId()), data);
     return index;
   }
 
   @Override
-  public Optional<PixProviderIndex> findByProviderChargeId(String providerChargeId) {
-    if (providerChargeId == null) {
+  public Optional<PixProviderIndex> findByProviderChargeId(String provider, String providerChargeId) {
+    if (providerChargeId == null || provider == null) {
       return Optional.empty();
     }
     try {
       DocumentSnapshot snapshot = firestore.collection(properties.getCollections().getPixProviderIndex())
-          .document(providerChargeId)
+          .document(key(provider, providerChargeId))
           .get()
           .get();
       if (!snapshot.exists()) {
@@ -77,6 +77,7 @@ public class FirestorePixProviderIndexStore implements PixProviderIndexStore {
 
   private Map<String, Object> toDocument(PixProviderIndex index) {
     Map<String, Object> data = new HashMap<>();
+    data.put("provider", index.provider());
     data.put("providerChargeId", index.providerChargeId());
     data.put("tenantId", index.tenantId());
     data.put("chargeId", index.chargeId());
@@ -85,17 +86,29 @@ public class FirestorePixProviderIndexStore implements PixProviderIndexStore {
   }
 
   private PixProviderIndex fromSnapshot(DocumentSnapshot snapshot) {
+    String provider = snapshot.getString("provider");
     String providerChargeId = snapshot.getString("providerChargeId");
     if (providerChargeId == null) {
-      providerChargeId = snapshot.getId();
+      String id = snapshot.getId();
+      int sep = id.indexOf(":");
+      if (sep > 0) {
+        provider = id.substring(0, sep);
+        providerChargeId = id.substring(sep + 1);
+      } else {
+        providerChargeId = id;
+      }
     }
     String tenantId = snapshot.getString("tenantId");
     String chargeId = snapshot.getString("chargeId");
     Instant createdAt = toInstant(snapshot.getTimestamp("createdAt"));
-    if (tenantId == null || chargeId == null) {
+    if (tenantId == null || chargeId == null || provider == null) {
       return null;
     }
-    return new PixProviderIndex(providerChargeId, tenantId, chargeId, createdAt);
+    return new PixProviderIndex(provider, providerChargeId, tenantId, chargeId, createdAt);
+  }
+
+  private String key(String provider, String providerChargeId) {
+    return provider.toUpperCase() + ":" + providerChargeId;
   }
 
   private Timestamp toTimestamp(Instant instant) {

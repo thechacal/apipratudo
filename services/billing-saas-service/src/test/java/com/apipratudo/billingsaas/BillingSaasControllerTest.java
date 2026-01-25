@@ -203,7 +203,8 @@ class BillingSaasControllerTest {
             .content(webhookPayload))
         .andExpect(status().isUnauthorized());
 
-    PixProviderIndex index = pixProviderIndexStore.findByProviderChargeId(providerChargeId).orElseThrow();
+    PixProviderIndex index = pixProviderIndexStore.findByProviderChargeId("FAKE", providerChargeId).orElseThrow();
+    assertThat(index.provider()).isEqualTo("FAKE");
     assertThat(index.tenantId()).isEqualTo(tenantId);
     assertThat(index.chargeId()).isEqualTo(chargeId);
 

@@ -12,5 +12,5 @@ public interface PixProviderIndexStore {
     return save(index);
   }
 
-  Optional<PixProviderIndex> findByProviderChargeId(String providerChargeId);
+  Optional<PixProviderIndex> findByProviderChargeId(String provider, String providerChargeId);
 }

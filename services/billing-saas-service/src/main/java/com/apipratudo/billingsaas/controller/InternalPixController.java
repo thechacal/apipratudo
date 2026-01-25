@@ -3,12 +3,12 @@ package com.apipratudo.billingsaas.controller;
 import com.apipratudo.billingsaas.config.WebhookProperties;
 import com.apipratudo.billingsaas.dto.PixGenerateRequest;
 import com.apipratudo.billingsaas.dto.PixGenerateResponse;
-import com.apipratudo.billingsaas.dto.PixWebhookRequest;
 import com.apipratudo.billingsaas.error.UnauthorizedException;
 import com.apipratudo.billingsaas.idempotency.IdempotencyResponse;
 import com.apipratudo.billingsaas.idempotency.IdempotencyResult;
 import com.apipratudo.billingsaas.idempotency.IdempotencyService;
 import com.apipratudo.billingsaas.service.ChargeService;
+import com.apipratudo.billingsaas.service.PixWebhookService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -36,17 +36,20 @@ public class InternalPixController {
   private final IdempotencyService idempotencyService;
   private final WebhookProperties webhookProperties;
   private final ObjectMapper objectMapper;
+  private final PixWebhookService pixWebhookService;
 
   public InternalPixController(
       ChargeService chargeService,
       IdempotencyService idempotencyService,
       WebhookProperties webhookProperties,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      PixWebhookService pixWebhookService
   ) {
     this.chargeService = chargeService;
     this.idempotencyService = idempotencyService;
     this.webhookProperties = webhookProperties;
     this.objectMapper = objectMapper;
+    this.pixWebhookService = pixWebhookService;
   }
 
   @PostMapping("/gerar")
@@ -83,11 +86,28 @@ public class InternalPixController {
   @SecurityRequirement(name = "WebhookSecret")
   public ResponseEntity<Map<String, Object>> webhook(
       @RequestHeader(value = "X-Webhook-Secret", required = false) String secret,
-      @Valid @RequestBody PixWebhookRequest request
+      HttpServletRequest httpRequest,
+      @RequestBody(required = false) byte[] body
   ) {
     validateWebhookSecret(secret);
-    chargeService.handleWebhookPaid(request);
-    return ResponseEntity.ok(Map.of("ok", true));
+    String signature = resolveSignature(httpRequest);
+    PixWebhookService.WebhookResult result = pixWebhookService.handle(
+        body == null ? new byte[0] : body,
+        httpRequest.getContentType(),
+        signature
+    );
+    if (!result.ok()) {
+      throw new UnauthorizedException(result.message());
+    }
+    Map<String, Object> response = new java.util.HashMap<>();
+    response.put("ok", true);
+    if (result.mode() != null) {
+      response.put("mode", result.mode());
+    }
+    if (result.warning() != null) {
+      response.put("warning", result.warning());
+    }
+    return ResponseEntity.ok(response);
   }
 
   private void validateWebhookSecret(String provided) {
@@ -95,6 +115,14 @@ public class InternalPixController {
     if (!StringUtils.hasText(expected) || !expected.equals(provided)) {
       throw new UnauthorizedException("Missing or invalid X-Webhook-Secret");
     }
+  }
+
+  private String resolveSignature(HttpServletRequest request) {
+    String signature = request.getHeader("x-authenticity-token");
+    if (!StringUtils.hasText(signature)) {
+      signature = request.getHeader("X-Authenticity-Token");
+    }
+    return signature == null ? "" : signature.trim();
   }
 
   private String toJson(Object value) {

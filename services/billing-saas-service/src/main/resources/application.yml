@@ -22,6 +22,15 @@ app:
     service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
   webhook:
     secret: ${BILLING_SAAS_WEBHOOK_SECRET:}
+  crypto:
+    master-key-base64: ${BILLING_SAAS_MASTER_KEY_BASE64:}
+  pagbank:
+    sandbox-base-url: ${BILLING_SAAS_PAGBANK_SANDBOX_BASE_URL:https://sandbox.api.pagseguro.com}
+    production-base-url: ${BILLING_SAAS_PAGBANK_PRODUCTION_BASE_URL:https://api.pagseguro.com}
+    notification-url: ${BILLING_SAAS_PAGBANK_NOTIFICATION_URL:}
+    qr-ttl-seconds: ${BILLING_SAAS_PAGBANK_QR_TTL_SECONDS:3600}
+    timezone: ${BILLING_SAAS_PAGBANK_TIMEZONE:America/Sao_Paulo}
+    timeout-ms: ${BILLING_SAAS_PAGBANK_TIMEOUT_MS:60000}
 
 management:
   endpoints:

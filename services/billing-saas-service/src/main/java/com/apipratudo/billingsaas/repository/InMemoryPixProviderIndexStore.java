@@ -15,15 +15,19 @@ public class InMemoryPixProviderIndexStore implements PixProviderIndexStore {
 
   @Override
   public PixProviderIndex save(PixProviderIndex index) {
-    store.put(index.providerChargeId(), index);
+    store.put(key(index.provider(), index.providerChargeId()), index);
     return index;
   }
 
   @Override
-  public Optional<PixProviderIndex> findByProviderChargeId(String providerChargeId) {
-    if (providerChargeId == null) {
+  public Optional<PixProviderIndex> findByProviderChargeId(String provider, String providerChargeId) {
+    if (providerChargeId == null || provider == null) {
       return Optional.empty();
     }
-    return Optional.ofNullable(store.get(providerChargeId));
+    return Optional.ofNullable(store.get(key(provider, providerChargeId)));
+  }
+
+  private String key(String provider, String providerChargeId) {
+    return provider.toUpperCase() + ":" + providerChargeId;
   }
 }
