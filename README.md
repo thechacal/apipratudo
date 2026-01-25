@@ -29,7 +29,7 @@ API Pra Tudo e uma plataforma de APIs em Java/Spring Boot com contrato publico e
 - Cada request consome 1 credito quando houver saldo.
 - Quando `credits.remaining` chega a 0, volta automaticamente para FREE.
 - Ao estourar FREE ou acabar creditos, o gateway responde HTTP 402 com `QUOTA_EXCEEDED` (nao alterar o payload).
- - O upgrade por creditos e feito via `billing-service` (PIX).
+- O upgrade por creditos e feito via `billing-service` (PIX).
 
 ### SaaS de cobranca (billing-saas)
 - Cliente cria seus clientes e cobrancas via API.
@@ -94,6 +94,8 @@ Este repo nao tem reactor root. Todos os comandos devem usar `-f services/<modul
 - `APP_INTERNAL_TOKEN` (quota-service, token interno)
 - `QUOTA_INTERNAL_TOKEN` (api-gateway, token interno para quota)
 - `PORTAL_TOKEN` / `APP_PORTAL_TOKEN` (portal -> quota-service)
+- `QUOTA_BASE_URL` (portal -> quota-service)
+- `BILLING_BASE_URL` (portal -> billing-service)
 - `BILLING_SERVICE_TOKEN` (portal -> billing-service)
 - `BILLING_SAAS_SERVICE_TOKEN` (gateway -> billing-saas)
 - `BILLING_SAAS_WEBHOOK_SECRET` (webhook externo -> billing-saas)
@@ -253,9 +255,12 @@ curl -s "http://localhost:8080/v1/relatorios?from=2026-01-01&to=2026-01-31" \
 - `BILLING_SAAS_BASE_URL` (URL do billing-saas)
 - `QUOTA_INTERNAL_TOKEN` (gateway -> quota)
 - `PORTAL_TOKEN` (portal -> quota)
+- `PORTAL_BASE_URL` (gateway -> portal)
+- `QUOTA_BASE_URL` (portal -> quota)
+- `BILLING_BASE_URL` (portal -> billing-service)
 - `BILLING_SERVICE_TOKEN` (portal -> billing-service)
 - `WEBHOOK_SECRET` (billing-service webhook PagBank)
-- `PAGBANK_TOKEN`, `PAGBANK_WEBHOOK_TOKEN`, `PAGBANK_NOTIFICATION_URL` (billing-service)
+- `PAGBANK_BASE_URL`, `PAGBANK_TOKEN`, `PAGBANK_WEBHOOK_TOKEN`, `PAGBANK_NOTIFICATION_URL` (billing-service)
 - `START_PRICE_CENTS`, `START_CREDITS`, `PRO_PRICE_CENTS`, `PRO_CREDITS`, `SCALE_PRICE_CENTS`, `SCALE_CREDITS` (portal)
 - `APP_PLANS_FREE_REQUESTS_PER_MINUTE`, `APP_PLANS_FREE_REQUESTS_PER_DAY` (quota-service)
 
@@ -302,6 +307,7 @@ Nao existe `index.html` dentro deste monorepo, entao o site deve ser editado no 
 
 ### Como editar
 - Edite `public/index.html` no repo do site.
+- O HTML nao possui comentarios com instrucoes; o deploy esta no `firebase.json`.
 - O sitemap e gerado automaticamente no predeploy a partir dos endpoints listados no HTML.
 
 ### Como publicar (Firebase Hosting)
