@@ -1,0 +1,9 @@
+app:
+  firestore:
+    enabled: false
+  security:
+    service-token: test-service-token
+  webhook:
+    secret: test-webhook-secret
+  idempotency:
+    ttl-seconds: 3600

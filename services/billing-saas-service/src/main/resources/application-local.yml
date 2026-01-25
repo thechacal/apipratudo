@@ -1,0 +1,7 @@
+app:
+  firestore:
+    enabled: false
+  security:
+    service-token: dev-billing-saas-token
+  webhook:
+    secret: dev-webhook-secret

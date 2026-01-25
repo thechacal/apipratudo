@@ -1,0 +1,37 @@
+server:
+  port: ${PORT:8096}
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+    collections:
+      customers: ${APP_BILLING_SAAS_CUSTOMERS_COLLECTION:${BILLING_SAAS_CUSTOMERS_COLLECTION:billing_saas_customers}}
+      charges: ${APP_BILLING_SAAS_CHARGES_COLLECTION:${BILLING_SAAS_CHARGES_COLLECTION:billing_saas_charges}}
+      idempotency: ${APP_BILLING_SAAS_IDEMPOTENCY_COLLECTION:${BILLING_SAAS_IDEMPOTENCY_COLLECTION:billing_saas_idempotency}}
+      pix-provider-index: ${APP_BILLING_SAAS_PIX_PROVIDER_INDEX_COLLECTION:${BILLING_SAAS_PIX_PROVIDER_INDEX_COLLECTION:pix_provider_index}}
+  idempotency:
+    ttl-seconds: ${IDP_TTL_SECONDS:86400}
+  security:
+    service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
+  webhook:
+    secret: ${BILLING_SAAS_WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true
