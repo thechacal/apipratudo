@@ -86,7 +86,7 @@ public class BillingSaasClient {
   public BillingSaasClientResult webhook(String body, String webhookSecret, String traceId, String contentType) {
     WebClient.RequestBodySpec spec = webClient.post()
         .uri("/internal/pix/webhook")
-        .contentType(StringUtils.hasText(contentType) ? MediaType.valueOf(contentType) : MediaType.APPLICATION_JSON)
+        .contentType(resolveContentType(contentType))
         .accept(MediaType.APPLICATION_JSON);
 
     if (StringUtils.hasText(webhookSecret)) {
@@ -193,6 +193,17 @@ public class BillingSaasClient {
     }
 
     return result;
+  }
+
+  private MediaType resolveContentType(String contentType) {
+    if (!StringUtils.hasText(contentType)) {
+      return MediaType.APPLICATION_JSON;
+    }
+    try {
+      return MediaType.valueOf(contentType);
+    } catch (IllegalArgumentException ex) {
+      return MediaType.APPLICATION_JSON;
+    }
   }
 
   public record BillingSaasClientResult(int statusCode, String body) {
