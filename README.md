@@ -1,160 +1,327 @@
-# apipratudo
+# API Pra Tudo
 
-Plataforma de APIs em Java/Spring Boot com entrada unica via api-gateway e foco em consumo por terceiros com quotas.
+API Pra Tudo e uma plataforma de APIs em Java/Spring Boot com contrato publico estavel em `/v1/*` exposto exclusivamente pelo api-gateway. O produto combina onboarding rapido, controle de cota e monetizacao por creditos, alem de um novo SaaS de cobranca (PIX + recorrencia) para clientes emitirem e gerenciarem cobrancas.
 
-## Servicos
-- Implementados: api-gateway, quota-service, webhook-service, developer-portal-service, billing-service, federal-results-service, lotofacil-results-service, megasena-results-service, quina-results-service, lotomania-results-service, timemania-results-service, duplasena-results-service, loteca-results-service, diadesorte-results-service, supersete-results-service, maismilionaria-results-service
+## Visao geral (produto e proposta)
 
-## Implementado ate agora
-- api-gateway como entrada /v1, exigindo X-Api-Key nas rotas publicas (exceto /v1/echo e docs).
-- webhook-service com cadastro e leitura de webhooks (POST/GET), idempotencia por Idempotency-Key e fallback InMemory quando Firestore nao esta disponivel.
-- api-gateway encaminha POST/GET /v1/webhooks para o webhook-service preservando X-Api-Key e Idempotency-Key.
-- quota-service com api-keys e quota (consume/refund/status) protegido por X-Admin-Token e X-Internal-Token.
-- Integracao de quota no gateway: consume antes do request e refund best-effort em respostas 5xx.
-- Idempotencia de quota: requestId usa Idempotency-Key apenas em metodos mutaveis; GET/HEAD/OPTIONS nao usam.
-- Fallback automatico para InMemory quando Firestore nao esta disponivel.
-- Calculo consistente de janelas minute/day e status alinhado ao consume.
-- Servicos de resultados da CAIXA expostos pelo gateway (/v1/*/resultado-oficial).
-- developer-portal-service publico para solicitar API key FREE e iniciar recarga via PIX.
-- billing-service interno com cobranca PIX PagBank e adicao de creditos.
+- Contrato publico estavel em `/v1/*` (gateway unico).
+- Autenticacao por `X-Api-Key` em rotas protegidas.
+- Plano FREE com limites baixos para testes.
+- Recarga por creditos via PIX (billing-service).
+- Novo: SaaS de cobranca com clientes, cobrancas, PIX, webhooks e relatorios (billing-saas-service).
+- Diferenciais: idempotencia, multi-tenant, webhook seguro, rastreio de cobrancas, link de WhatsApp para cobranca.
 
-## Lottery Results Services (via gateway)
-Endpoints (usar X-Api-Key):
-- GET /v1/federal/resultado-oficial
-- GET /v1/lotofacil/resultado-oficial
-- GET /v1/megasena/resultado-oficial
-- GET /v1/quina/resultado-oficial
-- GET /v1/lotomania/resultado-oficial
-- GET /v1/timemania/resultado-oficial
-- GET /v1/duplasena/resultado-oficial
-- GET /v1/loteca/resultado-oficial
-- GET /v1/diadesorte/resultado-oficial
-- GET /v1/supersete/resultado-oficial
-- GET /v1/maismilionaria/resultado-oficial
+## Contrato publico e OpenAPI
 
-Exemplo:
+- Contrato oficial exposto em `/v1/*` pelo api-gateway.
+- Fonte do OpenAPI no repo: `services/api-gateway/src/main/resources/static/openapi.yaml`.
+- Swagger do gateway em `/docs`.
+
+## Modelos de monetizacao
+
+### API publica (creditos)
+- FREE: limite diario + rpm para testes.
+- Pacotes de creditos: START, PRO, SCALE.
+- Valores e creditos:
+  - START: R$ 19,90 -> 50.000 creditos
+  - PRO: R$ 49,90 -> 200.000 creditos
+  - SCALE: R$ 99,90 -> 500.000 creditos
+- Cada request consome 1 credito quando houver saldo.
+- Quando `credits.remaining` chega a 0, volta automaticamente para FREE.
+- Ao estourar FREE ou acabar creditos, o gateway responde HTTP 402 com `QUOTA_EXCEEDED` (nao alterar o payload).
+ - O upgrade por creditos e feito via `billing-service` (PIX).
+
+### SaaS de cobranca (billing-saas)
+- Cliente cria seus clientes e cobrancas via API.
+- Gera PIX, recebe webhook, consulta status e relatorios.
+- Recorrencia mensal: ao receber `PAID`, a proxima cobranca e gerada automaticamente.
+
+## Arquitetura (alto nivel)
+
+### Servicos e portas locais (default)
+- api-gateway: 8080
+- quota-service: 8081
+- webhook-service: 8082
+- federal-results-service: 8083
+- lotofacil-results-service: 8084
+- megasena-results-service: 8085
+- quina-results-service: 8086
+- lotomania-results-service: 8087
+- timemania-results-service: 8088
+- duplasena-results-service: 8089
+- loteca-results-service: 8090
+- diadesorte-results-service: 8091
+- supersete-results-service: 8092
+- maismilionaria-results-service: 8093
+- developer-portal-service: 8094
+- billing-service (PIX/creditos): 8095
+- billing-saas-service (SaaS cobranca): 8096
+
+### Fluxo entre servicos
+- Cliente -> api-gateway (/v1/*).
+- api-gateway -> quota-service (consume/refund/status).
+- api-gateway -> developer-portal-service (key request, upgrade, status).
+- developer-portal-service -> quota-service (criar key FREE, status).
+- developer-portal-service -> billing-service (PIX creditos).
+- api-gateway -> billing-saas-service (clientes, cobrancas, pix, relatorios).
+- webhook externo -> api-gateway -> billing-saas-service (POST /v1/pix/webhook).
+
+### Headers importantes
+- Cliente -> gateway: `X-Api-Key`
+- Gateway -> billing-saas: `X-Tenant-Id` (SHA-256 hex da API key)
+- Gateway -> billing-saas: `X-Service-Token`
+- Webhook externo -> gateway -> billing-saas: `X-Webhook-Secret`
+
+### Quota e excecao de webhook
+- Quota aplicada pelo gateway em rotas `/v1/*`.
+- Excecao estrita: **somente** `POST /v1/pix/webhook` nao exige `X-Api-Key` e nao consome quota.
+
+## Pre-requisitos (dev)
+
+- Java 21
+- Maven
+- curl
+- python (usado pelo smoke script)
+- Docker (opcional)
+- Firestore local: opcional (em dev, use `APP_FIRESTORE_ENABLED=false`)
+
+## Rodar localmente (passo a passo)
+
+Este repo nao tem reactor root. Todos os comandos devem usar `-f services/<modulo>/pom.xml`.
+
+### Variaveis de ambiente usadas no local
+- `APP_FIRESTORE_ENABLED=false` (forca InMemory nos stores)
+- `APP_INTERNAL_TOKEN` (quota-service, token interno)
+- `QUOTA_INTERNAL_TOKEN` (api-gateway, token interno para quota)
+- `PORTAL_TOKEN` / `APP_PORTAL_TOKEN` (portal -> quota-service)
+- `BILLING_SERVICE_TOKEN` (portal -> billing-service)
+- `BILLING_SAAS_SERVICE_TOKEN` (gateway -> billing-saas)
+- `BILLING_SAAS_WEBHOOK_SECRET` (webhook externo -> billing-saas)
+- `BILLING_SAAS_BASE_URL` (gateway -> billing-saas)
+
+### Stack minimo para fluxo completo
+Inclui quota, portal, billing-saas e gateway.
+
 ```bash
-curl -s -H "X-Api-Key: $API_KEY" \
-  http://localhost:8080/v1/megasena/resultado-oficial | jq
+export APP_FIRESTORE_ENABLED=false
+export APP_INTERNAL_TOKEN=changeme
+export QUOTA_INTERNAL_TOKEN=changeme
+export PORTAL_TOKEN=changeme
+export APP_PORTAL_TOKEN=changeme
+export BILLING_SAAS_SERVICE_TOKEN=changeme
+export BILLING_SAAS_WEBHOOK_SECRET=changeme
 ```
 
-## Smoke test Cloud Run
 ```bash
-make smoke-cloud
+mvn -B -ntp -f services/quota-service/pom.xml spring-boot:run
+mvn -B -ntp -f services/developer-portal-service/pom.xml spring-boot:run
+mvn -B -ntp -f services/billing-saas-service/pom.xml spring-boot:run
+export BILLING_SAAS_BASE_URL=http://localhost:8096
+mvn -B -ntp -f services/api-gateway/pom.xml spring-boot:run
 ```
 
+### Health checks
 ```bash
-make smoke-cloud-summary
+curl -sf http://localhost:8081/actuator/health
+curl -sf http://localhost:8094/actuator/health
+curl -sf http://localhost:8096/actuator/health
+curl -sf http://localhost:8080/v1/echo
 ```
 
-```bash
-make smoke-cloud-json
-```
+## Testes (canonicos)
+
+Nao existe `./mvnw` nem reactor root. Execute por modulo:
 
 ```bash
-ADMIN_TOKEN=... make smoke-cloud
-API_KEY=... make smoke-cloud
-SHOW_JSON=1 ./scripts/smoke-cloud.sh
+mvn -B -ntp -f services/billing-saas-service/pom.xml test -DskipITs=false
+mvn -B -ntp -f services/api-gateway/pom.xml test -DskipITs=false
 ```
 
-## Arquitetura
-- docs/architecture.md
-- docs/diagrams/README.md
+Outros modulos (quando necessario):
 
-## Como rodar localmente
-Use o profile `local` para rodar sem Firestore.
-
-quota-service:
 ```bash
-cd services/quota-service
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+mvn -B -ntp -f services/quota-service/pom.xml test -DskipITs=false
+mvn -B -ntp -f services/developer-portal-service/pom.xml test -DskipITs=false
+mvn -B -ntp -f services/billing-service/pom.xml test -DskipITs=false
+mvn -B -ntp -f services/webhook-service/pom.xml test -DskipITs=false
 ```
 
-api-gateway:
+## Smoke end-to-end
+
+Script: `scripts/smoke-billing-saas.sh`
+
+O script:
+- solicita API key FREE
+- cria cliente
+- cria cobranca
+- gera PIX
+- chama webhook PAID
+- consulta status
+- chama relatorio
+
+Dependencias: `curl` e `python`. A API key sai mascarada no output.
+
 ```bash
-cd services/api-gateway
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+GW_URL=http://localhost:8080 WEBHOOK_SECRET=changeme ./scripts/smoke-billing-saas.sh
 ```
 
-webhook-service:
-```bash
-cd services/webhook-service
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
-```
+## Como usar como cliente (SaaS + API)
 
-## Tokens locais (quota-service)
-- X-Admin-Token: dev-admin
-- X-Internal-Token: dev-internal
-
-## Comece gratis em menos de 1 minuto
-1. Abra o Swagger: http://localhost:8080/docs (em prod: https://<gateway-url>/docs)
-2. Solicite sua API key gratuita em POST /v1/keys/request
-3. Use a key para testar os endpoints
-4. Ao atingir o limite FREE, recarregue via PIX
-
-## Como obter API key (FREE)
-Fluxo publico via gateway (sem X-Api-Key). A chave so aparece uma vez na resposta.
-
+### Fluxo de chave e creditos (API publica)
 ```bash
 curl -s -X POST http://localhost:8080/v1/keys/request \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"teste@exemplo.com","org":"Acme","useCase":"integracao resultados"}' | jq
+  -H "Content-Type: application/json" \
+  -d '{"email":"dev@empresa.com","org":"Empresa","useCase":"teste"}'
 ```
 
-## Limites e upgrade (creditos)
-Plano FREE:
-- 30 req/min
-- 200 req/dia
-- gratuito
-
-Pacotes de creditos (pagamento por consumo, sem assinatura recorrente):
-- START: R$ 19,90 -> 50.000 creditos
-- PRO: R$ 49,90 -> 200.000 creditos
-- SCALE: R$ 99,90 -> 500.000 creditos
-
-Regras de consumo:
-- Pagamento compra creditos (nao ha plano por periodo)
-- Creditos nao tem validade temporal
-- Enquanto credits.remaining > 0: usa limites PREMIUM (rpm alto, sem bloqueio diario)
-- Quando credits.remaining = 0: volta automaticamente para FREE
-
-Ao estourar a quota FREE ou acabar os creditos, o gateway devolve HTTP 402 com `QUOTA_EXCEEDED`
-e instrucao de recarga.
+```bash
+curl -s http://localhost:8080/v1/keys/status \
+  -H "X-Api-Key: SUA_API_KEY"
+```
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/keys/upgrade \
-  -H "X-Api-Key: $API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"packageName":"START"}' | jq
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -d '{"packageName":"START"}'
 ```
 
 ```bash
 curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
-  -H "X-Api-Key: $API_KEY" | jq
+  -H "X-Api-Key: SUA_API_KEY"
 ```
 
-Depois do pagamento PIX:
-- webhook PagBank confirma a cobranca no billing-service
-- billing-service adiciona creditos no quota-service
-- /v1/keys/status retorna `credits.remaining` e `plan=PREMIUM` (derivado) enquanto houver creditos
+### SaaS de cobranca
 
-## Curls minimos (admin)
+### Criar cliente (SaaS cobranca)
 ```bash
-# 1) criar API key (copie o campo apiKey do response)
-curl -X POST http://localhost:8081/v1/api-keys \
-  -H 'Content-Type: application/json' \
-  -H 'X-Admin-Token: dev-admin' \
-  -d '{"name":"Cliente A","owner":"cliente-a","limits":{"requestsPerMinute":60,"requestsPerDay":1000}}'
+curl -s -X POST http://localhost:8080/v1/clientes \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: cliente-001" \
+  -d '{"name":"Cliente ACME","document":"12345678900","email":"financeiro@acme.com","phone":"+5511999999999"}'
+```
+
+### Criar cobranca
+```bash
+curl -s -X POST http://localhost:8080/v1/cobrancas \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: cobranca-001" \
+  -d '{"customerId":"cus_...","amountCents":1990,"currency":"BRL","description":"Plano mensal","dueDate":"2026-01-31","recurrence":{"frequency":"MONTHLY","interval":1}}'
+```
+
+### Gerar PIX
+```bash
+curl -s -X POST http://localhost:8080/v1/pix/gerar \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: pix-001" \
+  -d '{"chargeId":"chg_...","expiresInSeconds":3600}'
+```
+
+### Webhook de confirmacao (sem API key)
+```bash
+curl -s -X POST http://localhost:8080/v1/pix/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: SEU_SEGREDO" \
+  -d '{"provider":"FAKE","providerChargeId":"fake_...","event":"PAID"}'
+```
+
+### Consultar status
+```bash
+curl -s http://localhost:8080/v1/cobrancas/chg_123/status \
+  -H "X-Api-Key: SUA_API_KEY"
+```
+
+### Relatorios
+```bash
+curl -s "http://localhost:8080/v1/relatorios?from=2026-01-01&to=2026-01-31" \
+  -H "X-Api-Key: SUA_API_KEY"
+```
+
+### Observacoes importantes
+- Use `Idempotency-Key` em POSTs mutaveis para evitar duplicacao.
+- Respostas do PIX retornam `pixCopyPaste`, `qrCodeBase64` e `whatsappLink`.
+
+## Producao (Cloud Run / Docker / Firestore)
+
+### Variaveis por ambiente (producao)
+- `APP_FIRESTORE_ENABLED=true`
+- `BILLING_SAAS_SERVICE_TOKEN` (forte, gateway -> billing-saas)
+- `BILLING_SAAS_WEBHOOK_SECRET` (forte, webhook externo)
+- `BILLING_SAAS_BASE_URL` (URL do billing-saas)
+- `QUOTA_INTERNAL_TOKEN` (gateway -> quota)
+- `PORTAL_TOKEN` (portal -> quota)
+- `BILLING_SERVICE_TOKEN` (portal -> billing-service)
+- `WEBHOOK_SECRET` (billing-service webhook PagBank)
+- `PAGBANK_TOKEN`, `PAGBANK_WEBHOOK_TOKEN`, `PAGBANK_NOTIFICATION_URL` (billing-service)
+- `START_PRICE_CENTS`, `START_CREDITS`, `PRO_PRICE_CENTS`, `PRO_CREDITS`, `SCALE_PRICE_CENTS`, `SCALE_CREDITS` (portal)
+- `APP_PLANS_FREE_REQUESTS_PER_MINUTE`, `APP_PLANS_FREE_REQUESTS_PER_DAY` (quota-service)
+
+### Build e deploy (exemplo)
+Use o Dockerfile do billing-saas-service ou o padrao Cloud Run do repo.
+
+```bash
+# build local
+cd services/billing-saas-service
+mvn -B -ntp package
+
+docker build -t billing-saas-service:local .
 ```
 
 ```bash
-# 2) chamar api-gateway com a API key criada
-curl http://localhost:8080/v1/webhooks \
-  -H 'X-Api-Key: <API_KEY>'
+# deploy Cloud Run (exemplo)
+# gcloud run deploy billing-saas-service --image gcr.io/PROJETO/IMAGE:TAG --region southamerica-east1
 ```
 
+### Checklist pos-deploy
+- validar `/actuator/health` de cada servico
+- validar `/v1/echo` no gateway
+- rodar smoke com URL de producao (com cuidado)
+
+### Firestore
+- Colecoes usadas pelo billing-saas-service:
+  - `tenants/{tenantId}/customers`
+  - `tenants/{tenantId}/charges`
+  - `pix_provider_index` (lookup de webhook por providerChargeId)
+  - `billing_saas_idempotency` (idempotencia)
+- TTL: o store de idempotencia grava `expiresAt`. Se o ambiente nao tiver TTL automatizado, configurar TTL manualmente no console.
+
+### Seguranca
+- Tokens em Secret Manager (nao versionar).
+- Rotacionar `X-Service-Token` e `X-Webhook-Secret` periodicamente.
+- Webhook secret separado do service token.
+
+## Site apipratudo.com (index.html)
+
+**Source of truth do site**: este monorepo nao contem o site. O HTML oficial esta em:
+- `/home/neo/Documentos/projetos/apipratudo-site/public/index.html`
+
+Nao existe `index.html` dentro deste monorepo, entao o site deve ser editado no projeto `apipratudo-site`.
+
+### Como editar
+- Edite `public/index.html` no repo do site.
+- O sitemap e gerado automaticamente no predeploy a partir dos endpoints listados no HTML.
+
+### Como publicar (Firebase Hosting)
+O arquivo `firebase.json` do site define o predeploy e o diretorio `public`.
+
 ```bash
-# 3) consultar status de quota com X-Admin-Token
-curl "http://localhost:8081/v1/quota/status?apiKey=<API_KEY>" \
-  -H 'X-Admin-Token: dev-admin'
+cd /home/neo/Documentos/projetos/apipratudo-site
+firebase deploy --only hosting --project api-pra-tudo
 ```
+
+### Links internos do site
+- /docs do gateway
+- /openapi.yaml do gateway
+- exemplos de uso via `/v1/*`
+
+## Checklist para comecar a vender hoje
+
+- Deploy: gateway + quota + portal + billing-saas.
+- Configurar tokens e segredos.
+- Verificar endpoints principais.
+- Atualizar o site com CTA e links para docs.
+- Definir limites FREE e pacotes de credito.
+- Ativar canal de suporte (email/whatsapp).
