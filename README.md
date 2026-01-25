@@ -193,7 +193,7 @@ curl -s http://localhost:8080/v1/keys/upgrade/{chargeId} \
   -H "X-Api-Key: SUA_API_KEY"
 ```
 
-### SaaS de cobranca
+SaaS de cobranca (PIX + recorrencia):
 
 ### Criar cliente (SaaS cobranca)
 ```bash
