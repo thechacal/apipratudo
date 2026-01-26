@@ -2,6 +2,7 @@ package com.apipratudo.billingsaas.provider;
 
 import com.apipratudo.billingsaas.config.PagBankProperties;
 import com.apipratudo.billingsaas.crypto.CryptoService;
+import com.apipratudo.billingsaas.error.ConfigurationException;
 import com.apipratudo.billingsaas.idempotency.HashingUtils;
 import com.apipratudo.billingsaas.model.Charge;
 import com.apipratudo.billingsaas.model.Customer;
@@ -70,7 +71,8 @@ public class PagbankPixProvider implements PixProvider {
         properties.getTimeoutMs()
     );
 
-    Map<String, Object> payload = buildPayload(charge, customer, expiresInSeconds);
+    String notificationUrl = resolveNotificationUrl(config.environment());
+    Map<String, Object> payload = buildPayload(charge, customer, expiresInSeconds, notificationUrl);
     String idempotencyKey = "pix-" + HashingUtils.sha256Hex(charge.id()).substring(0, 12);
     JsonNode response = client.createOrder(payload, idempotencyKey);
 
@@ -109,15 +111,20 @@ public class PagbankPixProvider implements PixProvider {
     return "PAGBANK";
   }
 
-  private Map<String, Object> buildPayload(Charge charge, Customer customer, long expiresInSeconds) {
+  private Map<String, Object> buildPayload(
+      Charge charge,
+      Customer customer,
+      long expiresInSeconds,
+      String notificationUrl
+  ) {
     Map<String, Object> payload = new HashMap<>();
     payload.put("reference_id", charge.id());
     payload.put("customer", buildCustomer(customer));
     payload.put("items", buildItems(charge));
     payload.put("qr_codes", buildQrCodes(charge, expiresInSeconds));
 
-    if (StringUtils.hasText(properties.getNotificationUrl())) {
-      payload.put("notification_urls", new String[]{properties.getNotificationUrl()});
+    if (StringUtils.hasText(notificationUrl)) {
+      payload.put("notification_urls", new String[]{notificationUrl});
     }
 
     return payload;
@@ -189,6 +196,19 @@ public class PagbankPixProvider implements PixProvider {
     return environment == PagbankEnvironment.PRODUCTION
         ? properties.getProductionBaseUrl()
         : properties.getSandboxBaseUrl();
+  }
+
+  private String resolveNotificationUrl(PagbankEnvironment environment) {
+    String notificationUrl = properties.getNotificationUrl();
+    if (StringUtils.hasText(notificationUrl)) {
+      return notificationUrl.trim();
+    }
+    if (environment == PagbankEnvironment.PRODUCTION) {
+      throw new ConfigurationException("BILLING_SAAS_PAGBANK_NOTIFICATION_URL ausente");
+    }
+    log.warn("PagBank notification URL not configured; webhook may not be delivered. " +
+        "Set BILLING_SAAS_PAGBANK_NOTIFICATION_URL.");
+    return null;
   }
 
   private String text(JsonNode node, String field) {
