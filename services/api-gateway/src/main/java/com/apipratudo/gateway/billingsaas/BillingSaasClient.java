@@ -89,7 +89,9 @@ public class BillingSaasClient {
         .contentType(resolveContentType(contentType))
         .accept(MediaType.APPLICATION_JSON);
 
-    if (StringUtils.hasText(webhookSecret)) {
+    if (StringUtils.hasText(properties.getWebhookSecret())) {
+      spec = spec.header("X-Webhook-Secret", properties.getWebhookSecret());
+    } else if (StringUtils.hasText(webhookSecret)) {
       spec = spec.header("X-Webhook-Secret", webhookSecret);
     }
     spec = applyServiceToken(spec);

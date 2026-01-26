@@ -18,6 +18,7 @@ public class BillingSaasClientProperties {
   private long timeoutMs = 3000;
 
   private String serviceToken;
+  private String webhookSecret;
 
   public String getBaseUrl() {
     return baseUrl;
@@ -41,5 +42,13 @@ public class BillingSaasClientProperties {
 
   public void setServiceToken(String serviceToken) {
     this.serviceToken = serviceToken;
+  }
+
+  public String getWebhookSecret() {
+    return webhookSecret;
+  }
+
+  public void setWebhookSecret(String webhookSecret) {
+    this.webhookSecret = webhookSecret;
   }
 }

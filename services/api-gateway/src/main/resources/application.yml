@@ -25,6 +25,7 @@ billing-saas:
   base-url: ${BILLING_SAAS_BASE_URL:http://localhost:8096}
   timeout-ms: ${BILLING_SAAS_TIMEOUT_MS:3000}
   service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
+  webhook-secret: ${BILLING_SAAS_WEBHOOK_SECRET:}
 
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
