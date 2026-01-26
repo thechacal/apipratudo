@@ -7,6 +7,19 @@ servers:
   - url: https://api.apipratudo.local
 security:
   - ApiKeyAuth: []
+tags:
+  - name: gateway
+    description: Health e informacoes basicas do gateway /v1.
+  - name: keys
+    description: Chaves, status e upgrade por creditos.
+  - name: loterias
+    description: Resultados oficiais das loterias em /v1.
+  - name: billing-saas
+    description: Cobranca PIX/recorrencia, clientes e relatorios.
+  - name: webhooks
+    description: Cadastro e teste de webhooks do produto.
+  - name: deliveries
+    description: Entregas e reentregas de webhooks.
 paths:
   /v1/echo:
     get:
@@ -378,7 +391,7 @@ paths:
   /v1/provedores/pagbank/conectar:
     post:
       summary: Conectar PagBank (Modelo B)
-      description: Conecta o PagBank do tenant. Este endpoint nao consome quota.
+      description: Conecta o PagBank do tenant. Nao consome quota, mas exige X-Api-Key.
       tags:
         - billing-saas
       security:
@@ -411,7 +424,7 @@ paths:
   /v1/provedores/pagbank/status:
     get:
       summary: Status da conexao PagBank
-      description: Retorna se o PagBank esta conectado. Este endpoint nao consome quota.
+      description: Retorna se o PagBank esta conectado. Nao consome quota, mas exige X-Api-Key.
       tags:
         - billing-saas
       security:
@@ -432,7 +445,7 @@ paths:
   /v1/provedores/pagbank/desconectar:
     delete:
       summary: Desconectar PagBank
-      description: Remove a conexao do PagBank. Este endpoint nao consome quota.
+      description: Remove a conexao do PagBank. Nao consome quota, mas exige X-Api-Key.
       tags:
         - billing-saas
       security:
@@ -449,7 +462,7 @@ paths:
   /v1/pix/webhook:
     post:
       summary: Webhook PIX
-      description: Endpoint publico para webhook do provedor PIX. Nao requer X-Api-Key. Aceita payload FAKE e PagBank. Para PagBank, enviar tambem X-Authenticity-Token.
+      description: Webhook do provedor PIX. Nao exige X-Api-Key; validado por segredo do webhook. Aceita payload FAKE e PagBank.
       tags:
         - billing-saas
       security: []
