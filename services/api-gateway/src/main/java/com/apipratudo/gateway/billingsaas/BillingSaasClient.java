@@ -83,7 +83,13 @@ public class BillingSaasClient {
     return exchange(applyBodyHeaders(spec, tenantId, idempotencyKey, traceId).bodyValue(request));
   }
 
-  public BillingSaasClientResult webhook(String body, String webhookSecret, String traceId, String contentType) {
+  public BillingSaasClientResult webhook(
+      String body,
+      String webhookSecret,
+      String signature,
+      String traceId,
+      String contentType
+  ) {
     WebClient.RequestBodySpec spec = webClient.post()
         .uri("/internal/pix/webhook")
         .contentType(resolveContentType(contentType))
@@ -95,6 +101,9 @@ public class BillingSaasClient {
       spec = spec.header("X-Webhook-Secret", webhookSecret);
     }
     spec = applyServiceToken(spec);
+    if (StringUtils.hasText(signature)) {
+      spec = spec.header("X-Authenticity-Token", signature);
+    }
     if (StringUtils.hasText(traceId)) {
       spec = spec.header("X-Trace-Id", traceId);
     }

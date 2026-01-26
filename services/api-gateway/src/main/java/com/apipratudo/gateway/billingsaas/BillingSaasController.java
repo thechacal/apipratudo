@@ -155,9 +155,11 @@ public class BillingSaasController {
   ) {
     String traceId = traceId();
     try {
+      String signature = resolveSignature(httpRequest);
       BillingSaasClient.BillingSaasClientResult result = billingSaasClient.webhook(
           body,
           webhookSecret,
+          signature,
           traceId,
           httpRequest.getContentType()
       );
@@ -166,6 +168,14 @@ public class BillingSaasController {
       log.warn("Billing SaaS webhook failed traceId={} reason={}", traceId, ex.getMessage());
       return serviceUnavailable(traceId);
     }
+  }
+
+  private String resolveSignature(HttpServletRequest request) {
+    String signature = request.getHeader("x-authenticity-token");
+    if (signature == null || signature.isBlank()) {
+      signature = request.getHeader("X-Authenticity-Token");
+    }
+    return signature == null ? "" : signature.trim();
   }
 
   @GetMapping("/relatorios")
