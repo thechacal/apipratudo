@@ -27,6 +27,11 @@ billing-saas:
   service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
   webhook-secret: ${BILLING_SAAS_WEBHOOK_SECRET:}
 
+scheduling:
+  base-url: ${SCHEDULING_BASE_URL:http://localhost:8097}
+  timeout-ms: ${SCHEDULING_TIMEOUT_MS:3000}
+  service-token: ${SCHEDULING_SERVICE_TOKEN:}
+
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
   timeout-ms: ${FEDERAL_TIMEOUT_MS:60000}

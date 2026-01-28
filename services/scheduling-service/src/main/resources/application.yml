@@ -1,0 +1,46 @@
+server:
+  port: ${PORT:8097}
+
+springdoc:
+  swagger-ui:
+    path: /docs
+    url: /openapi.yaml
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+    collections:
+      services: ${APP_SCHEDULING_SERVICES_COLLECTION:scheduling_services}
+      appointments: ${APP_SCHEDULING_APPOINTMENTS_COLLECTION:scheduling_appointments}
+      idempotency: ${APP_SCHEDULING_IDEMPOTENCY_COLLECTION:scheduling_idempotency}
+  security:
+    service-token: ${SCHEDULING_SERVICE_TOKEN:}
+  idempotency:
+    ttl-seconds: ${SCHEDULING_IDEMPOTENCY_TTL_SECONDS:86400}
+
+scheduling:
+  day-start: ${SCHEDULING_DAY_START:08:00}
+  day-end: ${SCHEDULING_DAY_END:18:00}
+  slot-step-min: ${SCHEDULING_SLOT_STEP_MIN:15}
+  hold-ttl-min: ${SCHEDULING_HOLD_TTL_MIN:15}
+  timezone: ${SCHEDULING_TIMEZONE:America/Sao_Paulo}
+
+webhook:
+  base-url: ${WEBHOOK_BASE_URL:http://localhost:8082}
+  timeout-ms: ${WEBHOOK_TIMEOUT_MS:3000}
+  service-token: ${WEBHOOK_SERVICE_TOKEN:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true
