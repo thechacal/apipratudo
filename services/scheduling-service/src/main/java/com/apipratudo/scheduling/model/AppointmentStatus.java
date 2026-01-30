@@ -3,5 +3,7 @@ package com.apipratudo.scheduling.model;
 public enum AppointmentStatus {
   HELD,
   CONFIRMED,
-  CANCELLED
+  CANCELLED,
+  ATTENDED,
+  NO_SHOW
 }

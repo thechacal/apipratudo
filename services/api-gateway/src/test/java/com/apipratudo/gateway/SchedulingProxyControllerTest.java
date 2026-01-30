@@ -1,6 +1,7 @@
 package com.apipratudo.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +74,12 @@ class SchedulingProxyControllerTest {
                     + "\"bufferMin\":10,\"noShowFeeCents\":2000,\"active\":true,"
                     + "\"createdAt\":\"2026-01-26T10:00:00Z\"}");
           }
+          if ("GET".equals(request.getMethod()) && "/v1/agendas".equals(request.getPath())) {
+            return new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("[]");
+          }
           return new MockResponse().setResponseCode(404);
         }
       });
@@ -113,6 +120,19 @@ class SchedulingProxyControllerTest {
     assertThat(recorded).isNotNull();
     assertThat(recorded.getHeader("X-Tenant-Id")).isEqualTo(HashingUtils.sha256Hex("test-key"));
     assertThat(recorded.getHeader("Idempotency-Key")).isEqualTo("idem-1");
+    assertThat(recorded.getHeader("X-Request-Id")).isNotBlank();
+    assertThat(recorded.getHeader("X-Service-Token")).isEqualTo("test-scheduling-token");
+  }
+
+  @Test
+  void listAgendasSendsTenantId() throws Exception {
+    mockMvc.perform(get("/v1/agendas")
+            .header("X-Api-Key", "test-key"))
+        .andExpect(status().isOk());
+
+    RecordedRequest recorded = schedulingServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(recorded).isNotNull();
+    assertThat(recorded.getHeader("X-Tenant-Id")).isEqualTo(HashingUtils.sha256Hex("test-key"));
     assertThat(recorded.getHeader("X-Request-Id")).isNotBlank();
     assertThat(recorded.getHeader("X-Service-Token")).isEqualTo("test-scheduling-token");
   }

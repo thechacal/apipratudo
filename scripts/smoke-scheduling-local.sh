@@ -7,6 +7,9 @@ set -euo pipefail
 #   SCHEDULING_URL=http://localhost:8097 \
 #   API_KEY=<opcional> \
 #   ./scripts/smoke-scheduling-local.sh
+#
+# Recomendado no scheduling-service local:
+#   SCHEDULING_AGENDA_DEFAULT_CREDITS=1
 
 require() {
   command -v "$1" >/dev/null 2>&1 || { echo "Missing dependency: $1"; exit 1; }
@@ -63,7 +66,19 @@ if [ -z "$SERVICE_ID" ] || [ "$SERVICE_ID" = "null" ]; then
 fi
 echo "SERVICE_ID=$SERVICE_ID"
 
-START_AT=$(curl -s "$GW_URL/v1/slots-disponiveis?serviceId=$SERVICE_ID&date=2026-01-26&agendaId=main" \
+AGENDA_ID=$(curl -s -X POST "$GW_URL/v1/agendas" \
+  -H "X-Api-Key: $API_KEY" \
+  -H "Idempotency-Key: agd-001" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Agenda Principal","timezone":"America/Sao_Paulo","workingHoursStart":"08:00","workingHoursEnd":"18:00","slotStepMin":15,"noShowFeeCents":2000,"active":true}' | jq -r '.id')
+
+if [ -z "$AGENDA_ID" ] || [ "$AGENDA_ID" = "null" ]; then
+  echo "Falha ao criar agenda"
+  exit 1
+fi
+echo "AGENDA_ID=$AGENDA_ID"
+
+START_AT=$(curl -s "$GW_URL/v1/slots-disponiveis?serviceId=$SERVICE_ID&date=2026-01-26&agendaId=$AGENDA_ID" \
   -H "X-Api-Key: $API_KEY" | jq -r '.slots[0].startAt')
 
 if [ -z "$START_AT" ] || [ "$START_AT" = "null" ]; then
@@ -76,7 +91,7 @@ APPOINTMENT_ID=$(curl -s -X POST "$GW_URL/v1/reservar" \
   -H "X-Api-Key: $API_KEY" \
   -H "Idempotency-Key: res-001" \
   -H "Content-Type: application/json" \
-  -d "{\"serviceId\":\"$SERVICE_ID\",\"agendaId\":\"main\",\"startAt\":\"$START_AT\",\"customer\":{\"name\":\"Ana\",\"phone\":\"+5588999990000\",\"email\":\"ana@email.com\"},\"notes\":\"$NOTES\"}" | jq -r '.appointmentId')
+  -d "{\"serviceId\":\"$SERVICE_ID\",\"agendaId\":\"$AGENDA_ID\",\"startAt\":\"$START_AT\",\"customer\":{\"name\":\"Ana\",\"phone\":\"+5588999990000\",\"email\":\"ana@email.com\"},\"notes\":\"$NOTES\"}" | jq -r '.appointmentId')
 
 if [ -z "$APPOINTMENT_ID" ] || [ "$APPOINTMENT_ID" = "null" ]; then
   echo "Falha ao reservar"
@@ -95,11 +110,44 @@ APPOINTMENT_ID_2=$(curl -s -X POST "$GW_URL/v1/reservar" \
   -H "X-Api-Key: $API_KEY" \
   -H "Idempotency-Key: res-001" \
   -H "Content-Type: application/json" \
-  -d "{\"serviceId\":\"$SERVICE_ID\",\"agendaId\":\"main\",\"startAt\":\"$START_AT\",\"customer\":{\"name\":\"Ana\",\"phone\":\"+5588999990000\",\"email\":\"ana@email.com\"},\"notes\":\"$NOTES\"}" | jq -r '.appointmentId')
+  -d "{\"serviceId\":\"$SERVICE_ID\",\"agendaId\":\"$AGENDA_ID\",\"startAt\":\"$START_AT\",\"customer\":{\"name\":\"Ana\",\"phone\":\"+5588999990000\",\"email\":\"ana@email.com\"},\"notes\":\"$NOTES\"}" | jq -r '.appointmentId')
 
 if [ "$APPOINTMENT_ID" = "$APPOINTMENT_ID_2" ]; then
   echo "IDEMPOTENCY_OK"
 else
   echo "IDEMPOTENCY_FAIL"
+  exit 1
+fi
+
+SECOND_START=$(curl -s "$GW_URL/v1/slots-disponiveis?serviceId=$SERVICE_ID&date=2026-01-26&agendaId=$AGENDA_ID" \
+  -H "X-Api-Key: $API_KEY" | jq -r '.slots[1].startAt')
+if [ -z "$SECOND_START" ] || [ "$SECOND_START" = "null" ]; then
+  SECOND_START=$(python - <<PY
+from datetime import datetime, timezone, timedelta
+import sys
+start = "$START_AT"
+dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+print((dt + timedelta(minutes=15)).astimezone(timezone.utc).isoformat().replace("+00:00","Z"))
+PY
+)
+fi
+
+APPOINTMENT_ID_3=$(curl -s -X POST "$GW_URL/v1/reservar" \
+  -H "X-Api-Key: $API_KEY" \
+  -H "Idempotency-Key: res-002" \
+  -H "Content-Type: application/json" \
+  -d "{\"serviceId\":\"$SERVICE_ID\",\"agendaId\":\"$AGENDA_ID\",\"startAt\":\"$SECOND_START\",\"customer\":{\"name\":\"Ana\",\"phone\":\"+5588999990000\",\"email\":\"ana@email.com\"},\"notes\":\"$NOTES\"}" | jq -r '.appointmentId')
+
+CONFIRM_2=$(curl -s -X POST "$GW_URL/v1/confirmar" \
+  -H "X-Api-Key: $API_KEY" \
+  -H "Idempotency-Key: conf-002" \
+  -H "Content-Type: application/json" \
+  -d "{\"appointmentId\":\"$APPOINTMENT_ID_3\"}")
+
+if echo "$CONFIRM_2" | jq -e '.error == "AGENDA_CREDITS_EXCEEDED"' >/dev/null; then
+  echo "AGENDA_CREDITS_EXCEEDED_OK"
+else
+  echo "AGENDA_CREDITS_EXCEEDED_FAIL"
+  echo "$CONFIRM_2" | jq
   exit 1
 fi

@@ -578,6 +578,312 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/agendas:
+    get:
+      summary: Listar agendas cadastradas
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Lista de agendas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgendaInfoResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Criar agenda
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaCreateRequest"
+      responses:
+        "200":
+          description: Agenda criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaInfoResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflito de idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/agendas/{id}:
+    get:
+      summary: Consultar agenda
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agenda retornada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaInfoResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Agenda nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Atualizar agenda
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaUpdateRequest"
+      responses:
+        "200":
+          description: Agenda atualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaInfoResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflito de idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/agendas/{id}/creditos/upgrade:
+    post:
+      summary: Recarregar creditos da agenda
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgendaCreditsUpgradeRequest"
+      responses:
+        "200":
+          description: Cobranca gerada para recarga de creditos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaCreditsUpgradeResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/agendas/{id}/creditos/status/{chargeId}:
+    get:
+      summary: Consultar status da recarga de creditos
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: chargeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status da cobranca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgendaCreditsStatusResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cobranca nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       summary: Criar servico de atendimento
       tags:
@@ -866,6 +1172,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/atendido:
+    post:
+      summary: Marcar atendimento como concluido
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendedRequest"
+      responses:
+        "200":
+          description: Atendimento concluido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendedResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflito de idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/cancelar:
     post:
       summary: Cancelar reserva
@@ -970,6 +1333,108 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Conflito de idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/multas:
+    get:
+      summary: Listar multas de no-show
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: agendaId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            example: PENDING
+      responses:
+        "200":
+          description: Lista de multas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FineResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/multas/{id}/waive:
+    post:
+      summary: Perdoar multa
+      tags:
+        - agendamento
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave para idempotencia. Mesmo payload retorna a mesma resposta 200.
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FineWaiveRequest"
+      responses:
+        "200":
+          description: Multa perdoada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FineResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Multa nao encontrada
           content:
             application/json:
               schema:
@@ -2879,3 +3344,205 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AppointmentResponse"
+    AgendaCreateRequest:
+      type: object
+      required:
+        - name
+        - timezone
+        - workingHoursStart
+        - workingHoursEnd
+        - slotStepMin
+        - noShowFeeCents
+        - active
+      properties:
+        name:
+          type: string
+          example: Agenda Principal
+        timezone:
+          type: string
+          example: America/Sao_Paulo
+        workingHoursStart:
+          type: string
+          example: "08:00"
+        workingHoursEnd:
+          type: string
+          example: "18:00"
+        slotStepMin:
+          type: integer
+          example: 15
+        noShowFeeCents:
+          type: integer
+          format: int64
+          example: 2000
+        active:
+          type: boolean
+          example: true
+    AgendaUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        timezone:
+          type: string
+        workingHoursStart:
+          type: string
+        workingHoursEnd:
+          type: string
+        slotStepMin:
+          type: integer
+        noShowFeeCents:
+          type: integer
+          format: int64
+        active:
+          type: boolean
+    AgendaInfoResponse:
+      type: object
+      required:
+        - id
+        - name
+        - timezone
+        - workingHoursStart
+        - workingHoursEnd
+        - slotStepMin
+        - noShowFeeCents
+        - active
+        - createdAt
+        - updatedAt
+        - creditsRemaining
+      properties:
+        id:
+          type: string
+          example: agd_123
+        name:
+          type: string
+        timezone:
+          type: string
+        workingHoursStart:
+          type: string
+        workingHoursEnd:
+          type: string
+        slotStepMin:
+          type: integer
+        noShowFeeCents:
+          type: integer
+          format: int64
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        creditsRemaining:
+          type: integer
+          format: int64
+    AgendaCreditsUpgradeRequest:
+      type: object
+      properties:
+        packageName:
+          type: string
+          example: START
+    AgendaCreditsUpgradeResponse:
+      type: object
+      required:
+        - agendaId
+        - chargeId
+        - status
+        - creditsAdded
+        - creditsBalance
+      properties:
+        agendaId:
+          type: string
+        chargeId:
+          type: string
+        status:
+          type: string
+        creditsAdded:
+          type: integer
+          format: int64
+        creditsBalance:
+          type: integer
+          format: int64
+        providerChargeId:
+          type: string
+        pixCopyPaste:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    AgendaCreditsStatusResponse:
+      type: object
+      required:
+        - agendaId
+        - status
+        - creditsAdded
+        - creditsBalance
+      properties:
+        agendaId:
+          type: string
+        chargeId:
+          type: string
+        status:
+          type: string
+        creditsAdded:
+          type: integer
+          format: int64
+        creditsBalance:
+          type: integer
+          format: int64
+    AttendedRequest:
+      type: object
+      required:
+        - appointmentId
+      properties:
+        appointmentId:
+          type: string
+          example: apt_123
+    AttendedResponse:
+      type: object
+      required:
+        - appointmentId
+        - status
+      properties:
+        appointmentId:
+          type: string
+        status:
+          type: string
+          example: ATTENDED
+    FineResponse:
+      type: object
+      required:
+        - id
+        - agendaId
+        - appointmentId
+        - amountCents
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: fine_123
+        agendaId:
+          type: string
+        appointmentId:
+          type: string
+        amountCents:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: PENDING
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FineWaiveRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          example: Cliente isento

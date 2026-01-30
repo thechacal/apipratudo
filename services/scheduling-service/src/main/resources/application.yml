@@ -15,6 +15,10 @@ app:
       services: ${APP_SCHEDULING_SERVICES_COLLECTION:scheduling_services}
       appointments: ${APP_SCHEDULING_APPOINTMENTS_COLLECTION:scheduling_appointments}
       idempotency: ${APP_SCHEDULING_IDEMPOTENCY_COLLECTION:scheduling_idempotency}
+      agendas: ${APP_SCHEDULING_AGENDAS_COLLECTION:scheduling_agendas}
+      agenda-credits: ${APP_SCHEDULING_AGENDA_CREDITS_COLLECTION:scheduling_agenda_credits}
+      agenda-charges: ${APP_SCHEDULING_AGENDA_CHARGES_COLLECTION:scheduling_agenda_charges}
+      fines: ${APP_SCHEDULING_FINES_COLLECTION:scheduling_fines}
   security:
     service-token: ${SCHEDULING_SERVICE_TOKEN:}
   idempotency:
@@ -26,6 +30,24 @@ scheduling:
   slot-step-min: ${SCHEDULING_SLOT_STEP_MIN:15}
   hold-ttl-min: ${SCHEDULING_HOLD_TTL_MIN:15}
   timezone: ${SCHEDULING_TIMEZONE:America/Sao_Paulo}
+  credits:
+    default-credits: ${SCHEDULING_AGENDA_DEFAULT_CREDITS:0}
+    package-name: ${SCHEDULING_AGENDA_PACKAGE_NAME:START}
+    package-credits: ${SCHEDULING_AGENDA_PACKAGE_CREDITS:10}
+    package-price-cents: ${SCHEDULING_AGENDA_PACKAGE_PRICE_CENTS:1990}
+    package-description: ${SCHEDULING_AGENDA_PACKAGE_DESCRIPTION:Creditos de agenda}
+    package-currency: ${SCHEDULING_AGENDA_PACKAGE_CURRENCY:BRL}
+    pix-expires-in-seconds: ${SCHEDULING_AGENDA_PIX_EXPIRES_IN_SECONDS:3600}
+  no-show:
+    enabled: ${SCHEDULING_NO_SHOW_ENABLED:true}
+    grace-min: ${SCHEDULING_NO_SHOW_GRACE_MIN:15}
+    scan-interval-ms: ${SCHEDULING_NO_SHOW_SCAN_INTERVAL_MS:60000}
+    max-per-run: ${SCHEDULING_NO_SHOW_MAX_PER_RUN:100}
+
+billing-saas:
+  base-url: ${BILLING_SAAS_BASE_URL:http://localhost:8096}
+  timeout-ms: ${BILLING_SAAS_TIMEOUT_MS:3000}
+  service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
 
 webhook:
   base-url: ${WEBHOOK_BASE_URL:http://localhost:8082}

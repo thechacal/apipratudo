@@ -3,8 +3,13 @@ package com.apipratudo.gateway.scheduling;
 import com.apipratudo.gateway.error.ErrorResponse;
 import com.apipratudo.gateway.idempotency.HashingUtils;
 import com.apipratudo.gateway.logging.TraceIdUtils;
+import com.apipratudo.gateway.scheduling.dto.AgendaCreateRequest;
+import com.apipratudo.gateway.scheduling.dto.AgendaCreditsUpgradeRequest;
+import com.apipratudo.gateway.scheduling.dto.AgendaUpdateRequest;
+import com.apipratudo.gateway.scheduling.dto.AttendedRequest;
 import com.apipratudo.gateway.scheduling.dto.CancelRequest;
 import com.apipratudo.gateway.scheduling.dto.ConfirmRequest;
+import com.apipratudo.gateway.scheduling.dto.FineWaiveRequest;
 import com.apipratudo.gateway.scheduling.dto.NotifyRequest;
 import com.apipratudo.gateway.scheduling.dto.ReservationRequest;
 import com.apipratudo.gateway.scheduling.dto.ServiceCreateRequest;
@@ -22,6 +27,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -55,6 +62,84 @@ public class SchedulingController {
     try {
       SchedulingClient.SchedulingClientResult result =
           schedulingClient.listServices(tenantId(apiKey), requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @GetMapping("/agendas")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> listAgendas(
+      @RequestHeader("X-Api-Key") String apiKey,
+      HttpServletRequest request
+  ) {
+    String traceId = traceId(request);
+    String requestId = requestId(request);
+    try {
+      SchedulingClient.SchedulingClientResult result =
+          schedulingClient.listAgendas(tenantId(apiKey), requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @PostMapping("/agendas")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> createAgenda(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @Valid @RequestBody AgendaCreateRequest request,
+      HttpServletRequest httpRequest
+  ) {
+    String traceId = traceId(httpRequest);
+    String requestId = requestId(httpRequest);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.createAgenda(
+          tenantId(apiKey), request, idempotencyKey, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @GetMapping("/agendas/{id}")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> getAgenda(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @PathVariable String id,
+      HttpServletRequest request
+  ) {
+    String traceId = traceId(request);
+    String requestId = requestId(request);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.getAgenda(
+          tenantId(apiKey), id, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @PatchMapping("/agendas/{id}")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> updateAgenda(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @PathVariable String id,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @Valid @RequestBody AgendaUpdateRequest request,
+      HttpServletRequest httpRequest
+  ) {
+    String traceId = traceId(httpRequest);
+    String requestId = requestId(httpRequest);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.updateAgenda(
+          tenantId(apiKey), id, request, idempotencyKey, requestId);
       return mapResult(result, traceId);
     } catch (Exception ex) {
       log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
@@ -145,6 +230,26 @@ public class SchedulingController {
     }
   }
 
+  @PostMapping("/atendido")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> attended(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @Valid @RequestBody AttendedRequest request,
+      HttpServletRequest httpRequest
+  ) {
+    String traceId = traceId(httpRequest);
+    String requestId = requestId(httpRequest);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.attended(
+          tenantId(apiKey), request, idempotencyKey, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
   @PostMapping("/confirmar")
   @SecurityRequirement(name = "ApiKeyAuth")
   public ResponseEntity<?> confirmar(
@@ -198,6 +303,90 @@ public class SchedulingController {
     try {
       SchedulingClient.SchedulingClientResult result = schedulingClient.notificar(
           tenantId(apiKey), request, idempotencyKey, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @PostMapping("/agendas/{id}/creditos/upgrade")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> upgradeAgendaCredits(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @PathVariable String id,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestBody(required = false) AgendaCreditsUpgradeRequest request,
+      HttpServletRequest httpRequest
+  ) {
+    String traceId = traceId(httpRequest);
+    String requestId = requestId(httpRequest);
+    AgendaCreditsUpgradeRequest payload = request == null ? new AgendaCreditsUpgradeRequest(null) : request;
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.upgradeAgendaCredits(
+          tenantId(apiKey), id, payload, idempotencyKey, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @GetMapping("/agendas/{id}/creditos/status/{chargeId}")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> creditsStatus(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @PathVariable String id,
+      @PathVariable String chargeId,
+      HttpServletRequest request
+  ) {
+    String traceId = traceId(request);
+    String requestId = requestId(request);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.creditsStatus(
+          tenantId(apiKey), id, chargeId, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @GetMapping("/multas")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> listFines(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @RequestParam(required = false) String agendaId,
+      @RequestParam(required = false) String status,
+      HttpServletRequest request
+  ) {
+    String traceId = traceId(request);
+    String requestId = requestId(request);
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.listFines(
+          tenantId(apiKey), agendaId, status, requestId);
+      return mapResult(result, traceId);
+    } catch (Exception ex) {
+      log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());
+      return serviceUnavailable(traceId);
+    }
+  }
+
+  @PostMapping("/multas/{id}/waive")
+  @SecurityRequirement(name = "ApiKeyAuth")
+  public ResponseEntity<?> waiveFine(
+      @RequestHeader("X-Api-Key") String apiKey,
+      @PathVariable String id,
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @RequestBody(required = false) FineWaiveRequest request,
+      HttpServletRequest httpRequest
+  ) {
+    String traceId = traceId(httpRequest);
+    String requestId = requestId(httpRequest);
+    FineWaiveRequest payload = request == null ? new FineWaiveRequest(null) : request;
+    try {
+      SchedulingClient.SchedulingClientResult result = schedulingClient.waiveFine(
+          tenantId(apiKey), id, payload, idempotencyKey, requestId);
       return mapResult(result, traceId);
     } catch (Exception ex) {
       log.warn("Scheduling request failed traceId={} reason={}", traceId, ex.getMessage());

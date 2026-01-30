@@ -3,3 +3,10 @@ app:
     enabled: false
   security:
     service-token: dev-scheduling-token
+
+scheduling:
+  credits:
+    default-credits: 1
+
+billing-saas:
+  service-token: dev-billing-token

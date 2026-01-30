@@ -42,6 +42,10 @@ public class FirestoreProperties {
     private String services = "scheduling_services";
     private String appointments = "scheduling_appointments";
     private String idempotency = "scheduling_idempotency";
+    private String agendas = "scheduling_agendas";
+    private String agendaCredits = "scheduling_agenda_credits";
+    private String agendaCharges = "scheduling_agenda_charges";
+    private String fines = "scheduling_fines";
 
     public String getServices() {
       return services;
@@ -65,6 +69,38 @@ public class FirestoreProperties {
 
     public void setIdempotency(String idempotency) {
       this.idempotency = idempotency;
+    }
+
+    public String getAgendas() {
+      return agendas;
+    }
+
+    public void setAgendas(String agendas) {
+      this.agendas = agendas;
+    }
+
+    public String getAgendaCredits() {
+      return agendaCredits;
+    }
+
+    public void setAgendaCredits(String agendaCredits) {
+      this.agendaCredits = agendaCredits;
+    }
+
+    public String getAgendaCharges() {
+      return agendaCharges;
+    }
+
+    public void setAgendaCharges(String agendaCharges) {
+      this.agendaCharges = agendaCharges;
+    }
+
+    public String getFines() {
+      return fines;
+    }
+
+    public void setFines(String fines) {
+      this.fines = fines;
     }
   }
 }

@@ -3,6 +3,11 @@ package com.apipratudo.gateway.scheduling;
 import com.apipratudo.gateway.scheduling.dto.CancelRequest;
 import com.apipratudo.gateway.scheduling.dto.ConfirmRequest;
 import com.apipratudo.gateway.scheduling.dto.NotifyRequest;
+import com.apipratudo.gateway.scheduling.dto.AgendaCreateRequest;
+import com.apipratudo.gateway.scheduling.dto.AgendaCreditsUpgradeRequest;
+import com.apipratudo.gateway.scheduling.dto.AgendaUpdateRequest;
+import com.apipratudo.gateway.scheduling.dto.AttendedRequest;
+import com.apipratudo.gateway.scheduling.dto.FineWaiveRequest;
 import com.apipratudo.gateway.scheduling.dto.ReservationRequest;
 import com.apipratudo.gateway.scheduling.dto.ServiceCreateRequest;
 import java.time.Duration;
@@ -29,6 +34,51 @@ public class SchedulingClient {
         .uri("/v1/servicos")
         .accept(MediaType.APPLICATION_JSON);
     return exchange(applyHeaders(spec, tenantId, requestId, null));
+  }
+
+  public SchedulingClientResult listAgendas(String tenantId, String requestId) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.get()
+        .uri("/v1/agendas")
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, requestId, null));
+  }
+
+  public SchedulingClientResult createAgenda(
+      String tenantId,
+      AgendaCreateRequest request,
+      String idempotencyKey,
+      String requestId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/v1/agendas")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
+  }
+
+  public SchedulingClientResult getAgenda(
+      String tenantId,
+      String agendaId,
+      String requestId
+  ) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.get()
+        .uri("/v1/agendas/{id}", agendaId)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, requestId, null));
+  }
+
+  public SchedulingClientResult updateAgenda(
+      String tenantId,
+      String agendaId,
+      AgendaUpdateRequest request,
+      String idempotencyKey,
+      String requestId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.patch()
+        .uri("/v1/agendas/{id}", agendaId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
   }
 
   public SchedulingClientResult createService(
@@ -97,6 +147,19 @@ public class SchedulingClient {
     return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
   }
 
+  public SchedulingClientResult attended(
+      String tenantId,
+      AttendedRequest request,
+      String idempotencyKey,
+      String requestId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/v1/atendido")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
+  }
+
   public SchedulingClientResult confirmar(
       String tenantId,
       ConfirmRequest request,
@@ -131,6 +194,67 @@ public class SchedulingClient {
   ) {
     WebClient.RequestBodySpec spec = webClient.post()
         .uri("/v1/notificar")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
+  }
+
+  public SchedulingClientResult upgradeAgendaCredits(
+      String tenantId,
+      String agendaId,
+      AgendaCreditsUpgradeRequest request,
+      String idempotencyKey,
+      String requestId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/v1/agendas/{id}/creditos/upgrade", agendaId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));
+  }
+
+  public SchedulingClientResult creditsStatus(
+      String tenantId,
+      String agendaId,
+      String chargeId,
+      String requestId
+  ) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.get()
+        .uri("/v1/agendas/{id}/creditos/status/{chargeId}", agendaId, chargeId)
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, requestId, null));
+  }
+
+  public SchedulingClientResult listFines(
+      String tenantId,
+      String agendaId,
+      String status,
+      String requestId
+  ) {
+    WebClient.RequestHeadersSpec<?> spec = webClient.get()
+        .uri(uriBuilder -> {
+          uriBuilder.path("/v1/multas");
+          if (StringUtils.hasText(agendaId)) {
+            uriBuilder.queryParam("agendaId", agendaId);
+          }
+          if (StringUtils.hasText(status)) {
+            uriBuilder.queryParam("status", status);
+          }
+          return uriBuilder.build();
+        })
+        .accept(MediaType.APPLICATION_JSON);
+    return exchange(applyHeaders(spec, tenantId, requestId, null));
+  }
+
+  public SchedulingClientResult waiveFine(
+      String tenantId,
+      String fineId,
+      FineWaiveRequest request,
+      String idempotencyKey,
+      String requestId
+  ) {
+    WebClient.RequestBodySpec spec = webClient.post()
+        .uri("/v1/multas/{id}/waive", fineId)
         .contentType(MediaType.APPLICATION_JSON)
         .accept(MediaType.APPLICATION_JSON);
     return exchange(applyBodyHeaders(spec, tenantId, requestId, idempotencyKey).bodyValue(request));

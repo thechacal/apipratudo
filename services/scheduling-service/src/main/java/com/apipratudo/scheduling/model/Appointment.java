@@ -17,7 +17,9 @@ public record Appointment(
     Instant createdAt,
     Instant updatedAt,
     Instant lastNotifiedAt,
-    String lastNotificationType
+    String lastNotificationType,
+    Instant attendedAt,
+    Instant noShowAt
 ) {
 
   public Appointment withStatus(AppointmentStatus newStatus, Instant now) {
@@ -36,7 +38,9 @@ public record Appointment(
         createdAt,
         now,
         lastNotifiedAt,
-        lastNotificationType
+        lastNotificationType,
+        attendedAt,
+        noShowAt
     );
   }
 
@@ -56,7 +60,53 @@ public record Appointment(
         createdAt,
         now,
         notifiedAt,
-        type
+        type,
+        attendedAt,
+        noShowAt
+    );
+  }
+
+  public Appointment withAttended(Instant now) {
+    return new Appointment(
+        id,
+        tenantId,
+        serviceId,
+        agendaId,
+        startAt,
+        endAt,
+        AppointmentStatus.ATTENDED,
+        holdExpiresAt,
+        customer,
+        notes,
+        noShowFeeCents,
+        createdAt,
+        now,
+        lastNotifiedAt,
+        lastNotificationType,
+        now,
+        noShowAt
+    );
+  }
+
+  public Appointment withNoShow(Instant now) {
+    return new Appointment(
+        id,
+        tenantId,
+        serviceId,
+        agendaId,
+        startAt,
+        endAt,
+        AppointmentStatus.NO_SHOW,
+        holdExpiresAt,
+        customer,
+        notes,
+        noShowFeeCents,
+        createdAt,
+        now,
+        lastNotifiedAt,
+        lastNotificationType,
+        attendedAt,
+        now
     );
   }
 }
