@@ -1,0 +1,8 @@
+app:
+  firestore:
+    enabled: false
+  security:
+    service-token: dev-helpdesk-token
+  whatsapp:
+    verify-token: dev-verify-token
+    app-secret: dev-app-secret

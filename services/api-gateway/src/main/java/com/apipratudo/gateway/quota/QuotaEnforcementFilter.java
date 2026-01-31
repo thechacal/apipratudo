@@ -30,6 +30,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
   private static final String KEYS_STATUS_PATH = "/v1/keys/status";
   private static final String KEYS_UPGRADE_PREFIX = "/v1/keys/upgrade";
   private static final String PIX_WEBHOOK_PATH = "/v1/pix/webhook";
+  private static final String WHATSAPP_WEBHOOK_PATH = "/v1/webhook/whatsapp";
   private static final String PROVIDERS_PAGBANK_CONNECT = "/v1/provedores/pagbank/conectar";
   private static final String PROVIDERS_PAGBANK_STATUS = "/v1/provedores/pagbank/status";
   private static final String PROVIDERS_PAGBANK_DISCONNECT = "/v1/provedores/pagbank/desconectar";
@@ -55,6 +56,10 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
       return true;
     }
     if ("POST".equalsIgnoreCase(request.getMethod()) && PIX_WEBHOOK_PATH.equals(path)) {
+      return true;
+    }
+    if (WHATSAPP_WEBHOOK_PATH.equals(path)
+        && ("POST".equalsIgnoreCase(request.getMethod()) || "GET".equalsIgnoreCase(request.getMethod()))) {
       return true;
     }
     return path.startsWith(KEYS_REQUEST_PATH);

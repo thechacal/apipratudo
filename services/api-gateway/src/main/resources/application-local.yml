@@ -12,6 +12,9 @@ portal:
 billing-saas:
   base-url: http://localhost:8096
   service-token: dev-billing-saas-token
+helpdesk:
+  base-url: http://localhost:8098
+  service-token: dev-helpdesk-token
 federal:
   base-url: http://localhost:8083
 lotofacil:

@@ -18,6 +18,8 @@ tags:
     description: Cobranca PIX/recorrencia, clientes e relatorios.
   - name: agendamento
     description: Agenda, servicos e reservas para agendamento.
+  - name: helpdesk
+    description: WhatsApp/atendimento, tickets e templates com SLA simples.
   - name: webhooks
     description: Cadastro e teste de webhooks do produto.
   - name: deliveries
@@ -1445,6 +1447,478 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/tickets:
+    get:
+      summary: Listar tickets de atendimento
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, PENDING, RESOLVED, CLOSED]
+      responses:
+        "200":
+          description: Lista de tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TicketResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Criar ticket de atendimento
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketCreateRequest"
+      responses:
+        "200":
+          description: Ticket criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/tickets/{ticketId}:
+    get:
+      summary: Consultar ticket
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "404":
+          description: Ticket nao encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/tickets/{ticketId}/mensagens:
+    get:
+      summary: Listar mensagens do ticket
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de mensagens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Enviar mensagem no ticket
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageCreateRequest"
+      responses:
+        "200":
+          description: Mensagem criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/tickets/{ticketId}/atribuir:
+    post:
+      summary: Atribuir ticket para agente
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRequest"
+      responses:
+        "200":
+          description: Ticket atribuido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/tickets/{ticketId}/status:
+    post:
+      summary: Atualizar status do ticket
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatusUpdateRequest"
+      responses:
+        "200":
+          description: Ticket atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/templates:
+    get:
+      summary: Listar templates de atendimento
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Lista de templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TemplateResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Criar template de atendimento
+      tags:
+        - helpdesk
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TemplateCreateRequest"
+      responses:
+        "200":
+          description: Template criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/webhook/whatsapp:
+    get:
+      summary: Verificacao do webhook do WhatsApp
+      tags:
+        - helpdesk
+      security: []
+      parameters:
+        - name: hub.mode
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: hub.verify_token
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Challenge validado
+          content:
+            text/plain:
+              schema:
+                type: string
+        "403":
+          description: Token invalido
+    post:
+      summary: Receber eventos do WhatsApp
+      tags:
+        - helpdesk
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Evento recebido
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Assinatura invalida
   /v1/webhooks:
     post:
       summary: Cadastro de webhook
@@ -3546,3 +4020,156 @@ components:
         reason:
           type: string
           example: Cliente isento
+    TicketCreateRequest:
+      type: object
+      required:
+        - customerWaId
+      properties:
+        customerWaId:
+          type: string
+          example: 5588999990000
+    TicketResponse:
+      type: object
+      required:
+        - id
+        - status
+        - customerWaId
+        - createdAt
+        - updatedAt
+        - slaFirstResponseDueAt
+      properties:
+        id:
+          type: string
+          example: tkt_123
+        status:
+          type: string
+          example: OPEN
+        assigneeUserId:
+          type: string
+          nullable: true
+        customerWaId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        slaFirstResponseDueAt:
+          type: string
+          format: date-time
+        firstResponseAt:
+          type: string
+          format: date-time
+          nullable: true
+        autoSummary:
+          type: string
+        intentTags:
+          type: array
+          items:
+            type: string
+    MessageCreateRequest:
+      type: object
+      required:
+        - direction
+        - text
+      properties:
+        direction:
+          type: string
+          enum: [INBOUND, OUTBOUND]
+        text:
+          type: string
+        providerMessageId:
+          type: string
+          nullable: true
+    MessageResponse:
+      type: object
+      required:
+        - id
+        - ticketId
+        - direction
+        - text
+        - createdAt
+      properties:
+        id:
+          type: string
+        ticketId:
+          type: string
+        direction:
+          type: string
+          enum: [INBOUND, OUTBOUND]
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        providerMessageId:
+          type: string
+          nullable: true
+    AssignRequest:
+      type: object
+      required:
+        - assigneeUserId
+      properties:
+        assigneeUserId:
+          type: string
+    StatusUpdateRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [OPEN, PENDING, RESOLVED, CLOSED]
+    TemplateCreateRequest:
+      type: object
+      required:
+        - name
+        - body
+      properties:
+        name:
+          type: string
+        body:
+          type: string
+    TemplateResponse:
+      type: object
+      required:
+        - id
+        - name
+        - body
+        - createdAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    QuotaExceededResponse:
+      type: object
+      required:
+        - error
+        - message
+        - upgrade
+      properties:
+        error:
+          type: string
+          example: QUOTA_EXCEEDED
+        message:
+          type: string
+          example: Cota esgotada. Recarregue creditos para continuar.
+        upgrade:
+          type: object
+          required:
+            - endpoint
+            - docs
+          properties:
+            endpoint:
+              type: string
+              example: /v1/keys/upgrade
+            docs:
+              type: string
+              example: /docs

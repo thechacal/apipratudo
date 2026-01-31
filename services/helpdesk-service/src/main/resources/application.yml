@@ -1,0 +1,41 @@
+server:
+  port: ${PORT:8098}
+
+springdoc:
+  swagger-ui:
+    path: /docs
+    url: /openapi.yaml
+
+app:
+  firestore:
+    enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
+    project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
+    emulator-host: ${APP_FIRESTORE_EMULATOR_HOST:${FIRESTORE_EMULATOR_HOST:}}
+  security:
+    service-token: ${HELPDESK_SERVICE_TOKEN:}
+  idempotency:
+    collection: ${HELPDESK_IDEMPOTENCY_COLLECTION:helpdesk_idempotency}
+    ttl-seconds: ${HELPDESK_IDEMPOTENCY_TTL_SECONDS:86400}
+  helpdesk:
+    sla-minutes: ${HELPDESK_SLA_MINUTES:30}
+    summary-max-chars: ${HELPDESK_SUMMARY_MAX_CHARS:500}
+    intent-keywords:
+      preco: PRECO
+      valor: PRECO
+      prazo: PRAZO
+      entrega: PRAZO
+      pix: PAGAMENTO
+      pagamento: PAGAMENTO
+      erro: SUPORTE
+      problema: SUPORTE
+      cancelar: CANCELAMENTO
+  whatsapp:
+    verify-token: ${WHATSAPP_VERIFY_TOKEN:}
+    app-secret: ${WHATSAPP_APP_SECRET:${WHATSAPP_WEBHOOK_SECRET:}}
+    bindings-collection: ${WHATSAPP_BINDINGS_COLLECTION:whatsapp_bindings}
+
+helpdesk:
+  firestore:
+    tickets-collection: ${HELPDESK_TICKETS_COLLECTION:helpdesk_tickets}
+    messages-collection: ${HELPDESK_MESSAGES_COLLECTION:helpdesk_messages}
+    templates-collection: ${HELPDESK_TEMPLATES_COLLECTION:helpdesk_templates}

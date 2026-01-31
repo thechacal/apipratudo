@@ -19,6 +19,11 @@ Foque no seu produto; a API cuida da infraestrutura e do contrato publico.
 - Multas por no-show e eventos via webhooks.
 - Creditos por agenda para liberar confirmacoes.
 
+### Helpdesk/WhatsApp (MVP)
+- Criar tickets, registrar mensagens e gerenciar status.
+- Webhook do WhatsApp publico (sem X-Api-Key) com validacao de assinatura.
+- Templates simples para respostas padronizadas.
+
 ## Em 60 segundos
 
 ### 1) Pedir uma API key
@@ -132,6 +137,36 @@ Monetizacao:
 
 Swagger (producao):
 - `/swagger-ui/index.html`
+
+## Helpdesk/WhatsApp (MVP)
+
+Endpoints publicos (via /v1, com X-Api-Key):
+- `GET /v1/tickets`
+- `POST /v1/tickets`
+- `GET /v1/tickets/{ticketId}`
+- `GET /v1/tickets/{ticketId}/mensagens`
+- `POST /v1/tickets/{ticketId}/mensagens`
+- `POST /v1/tickets/{ticketId}/atribuir`
+- `POST /v1/tickets/{ticketId}/status`
+- `GET /v1/templates`
+- `POST /v1/templates`
+
+Webhook WhatsApp (publico, sem X-Api-Key):
+- `GET /v1/webhook/whatsapp` (verify)
+- `POST /v1/webhook/whatsapp` (eventos)
+
+Headers obrigatorios:
+- `X-Api-Key` em rotas de tickets/templates
+- `Idempotency-Key` nos POST mutaveis
+
+Exemplo rapido:
+```bash
+curl -s "$BASE_URL/v1/tickets" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: tkt-001" \
+  -H "Content-Type: application/json" \
+  -d '{"customerWaId":"5511999999999"}'
+```
 
 ## Links
 - `/swagger-ui/index.html`

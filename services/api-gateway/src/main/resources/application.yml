@@ -27,6 +27,11 @@ billing-saas:
   service-token: ${BILLING_SAAS_SERVICE_TOKEN:}
   webhook-secret: ${BILLING_SAAS_WEBHOOK_SECRET:}
 
+helpdesk:
+  base-url: ${HELPDESK_BASE_URL:http://localhost:8098}
+  timeout-ms: ${HELPDESK_TIMEOUT_MS:3000}
+  service-token: ${HELPDESK_SERVICE_TOKEN:}
+
 scheduling:
   base-url: ${SCHEDULING_BASE_URL:http://localhost:8097}
   timeout-ms: ${SCHEDULING_TIMEOUT_MS:3000}

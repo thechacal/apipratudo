@@ -34,6 +34,7 @@ class QuotaEnforcementFilterTest {
   private static MockWebServer quotaServer;
   private static MockWebServer webhookServer;
   private static MockWebServer billingSaasServer;
+  private static MockWebServer helpdeskServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -90,6 +91,18 @@ class QuotaEnforcementFilterTest {
     registry.add("billing-saas.base-url", () -> billingSaasServer.url("/").toString());
     registry.add("billing-saas.timeout-ms", () -> 2000);
     registry.add("billing-saas.service-token", () -> "test-billing-saas");
+
+    if (helpdeskServer == null) {
+      helpdeskServer = new MockWebServer();
+      try {
+        helpdeskServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start helpdesk mock server", e);
+      }
+    }
+    registry.add("helpdesk.base-url", () -> helpdeskServer.url("/").toString());
+    registry.add("helpdesk.timeout-ms", () -> 2000);
+    registry.add("helpdesk.service-token", () -> "test-helpdesk");
   }
 
   @AfterAll
@@ -102,6 +115,9 @@ class QuotaEnforcementFilterTest {
     }
     if (billingSaasServer != null) {
       billingSaasServer.shutdown();
+    }
+    if (helpdeskServer != null) {
+      helpdeskServer.shutdown();
     }
   }
 
@@ -124,6 +140,12 @@ class QuotaEnforcementFilterTest {
     }
     while (billingSaasServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
       // drain billing-saas requests to keep tests isolated
+    }
+    if (helpdeskServer == null) {
+      return;
+    }
+    while (helpdeskServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+      // drain helpdesk requests to keep tests isolated
     }
   }
 
@@ -217,6 +239,32 @@ class QuotaEnforcementFilterTest {
     assertThat(webhookRequest.getPath()).isEqualTo("/internal/pix/webhook");
     assertThat(webhookRequest.getHeader("X-Service-Token")).isEqualTo("test-billing-saas");
     assertThat(webhookRequest.getHeader("X-Webhook-Secret")).isEqualTo("test-secret");
+  }
+
+  @Test
+  void whatsappWebhookBypassesQuota() throws Exception {
+    helpdeskServer.enqueue(new MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "application/json")
+        .setBody("{\"ok\":true}"));
+
+    byte[] payload = "{\"entry\":[]}".getBytes();
+    mockMvc.perform(post("/v1/webhook/whatsapp")
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("X-Hub-Signature-256", "sha256=fake")
+            .content(payload))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    RecordedRequest quotaRequest = quotaServer.takeRequest(200, TimeUnit.MILLISECONDS);
+    assertThat(quotaRequest).isNull();
+
+    RecordedRequest helpdeskRequest = helpdeskServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(helpdeskRequest).isNotNull();
+    assertThat(helpdeskRequest.getPath()).isEqualTo("/internal/helpdesk/webhook/whatsapp");
+    assertThat(helpdeskRequest.getHeader("X-Service-Token")).isEqualTo("test-helpdesk");
+    assertThat(helpdeskRequest.getHeader("X-Hub-Signature-256")).isEqualTo("sha256=fake");
+    assertThat(helpdeskRequest.getBody().readByteArray()).isEqualTo(payload);
   }
 
   @Test
