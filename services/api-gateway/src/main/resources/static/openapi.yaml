@@ -20,6 +20,8 @@ tags:
     description: Agenda, servicos e reservas para agendamento.
   - name: helpdesk
     description: WhatsApp/atendimento, tickets e templates com SLA simples.
+  - name: reconciliacao
+    description: Importacao de extrato, matching e conciliacao de pagamentos.
   - name: webhooks
     description: Cadastro e teste de webhooks do produto.
   - name: deliveries
@@ -1919,6 +1921,236 @@ paths:
                 type: object
         "401":
           description: Assinatura invalida
+  /v1/importar-extrato:
+    post:
+      summary: Importar extrato OFX/CSV
+      tags:
+        - reconciliacao
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                accountId:
+                  type: string
+                  example: main
+      responses:
+        "200":
+          description: Extrato importado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResponse"
+        "400":
+          description: Arquivo invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+  /v1/match:
+    post:
+      summary: Executar regras de conciliacao
+      tags:
+        - reconciliacao
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReconciliationMatchRequest"
+      responses:
+        "200":
+          description: Resultado da execucao de match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationMatchRunResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+  /v1/conciliado:
+    get:
+      summary: Listar itens conciliados
+      tags:
+        - reconciliacao
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: importId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de itens conciliados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPagedMatchResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+  /v1/pendencias:
+    get:
+      summary: Listar pendencias de conciliacao
+      tags:
+        - reconciliacao
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: importId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: tipo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [events, transactions]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Lista de pendencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPagedPendingResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+  /v1/webhook/pagamento:
+    post:
+      summary: Registrar evento de pagamento
+      description: Endpoint autenticado por X-Api-Key. Nao consome quota e recebe eventos para conciliacao.
+      tags:
+        - reconciliacao
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReconciliationPaymentWebhookRequest"
+      responses:
+        "200":
+          description: Evento recebido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReconciliationPaymentWebhookResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/webhooks:
     post:
       summary: Cadastro de webhook
@@ -4148,6 +4380,192 @@ components:
         createdAt:
           type: string
           format: date-time
+    ImportResponse:
+      type: object
+      required:
+        - importId
+        - format
+        - createdAt
+        - totalTransactions
+      properties:
+        importId:
+          type: string
+        format:
+          type: string
+          enum: [CSV, OFX]
+        createdAt:
+          type: string
+          format: date-time
+        totalTransactions:
+          type: integer
+        totalCreditsCents:
+          type: integer
+          format: int64
+        totalDebitsCents:
+          type: integer
+          format: int64
+    ReconciliationRuleset:
+      type: object
+      required:
+        - matchBy
+      properties:
+        matchBy:
+          type: array
+          items:
+            type: string
+            enum: [amount, date, reference]
+        dateToleranceDays:
+          type: integer
+          example: 2
+        amountToleranceCents:
+          type: integer
+          format: int64
+          example: 0
+        dedupe:
+          type: boolean
+          example: true
+    ReconciliationMatchRequest:
+      type: object
+      required:
+        - importId
+        - ruleset
+      properties:
+        importId:
+          type: string
+        ruleset:
+          $ref: "#/components/schemas/ReconciliationRuleset"
+    ReconciliationMatchResponse:
+      type: object
+      required:
+        - matchId
+        - importId
+        - txId
+        - eventId
+        - matchedAt
+      properties:
+        matchId:
+          type: string
+        importId:
+          type: string
+        txId:
+          type: string
+        eventId:
+          type: string
+        ruleApplied:
+          type: string
+        confidence:
+          type: number
+          format: double
+        matchedAt:
+          type: string
+          format: date-time
+    ReconciliationMatchRunResponse:
+      type: object
+      required:
+        - importId
+        - matchedCount
+        - pendingTransactions
+        - pendingEvents
+      properties:
+        importId:
+          type: string
+        matchedCount:
+          type: integer
+        pendingTransactions:
+          type: integer
+        pendingEvents:
+          type: integer
+    ReconciliationPendingItemResponse:
+      type: object
+      required:
+        - type
+        - itemId
+      properties:
+        type:
+          type: string
+          enum: [TRANSACTION, EVENT]
+        itemId:
+          type: string
+        date:
+          type: string
+        amountCents:
+          type: integer
+          format: int64
+        reference:
+          type: string
+        description:
+          type: string
+    ReconciliationPagedMatchResponse:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReconciliationMatchResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    ReconciliationPagedPendingResponse:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReconciliationPendingItemResponse"
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    ReconciliationPaymentWebhookRequest:
+      type: object
+      required:
+        - eventId
+        - paidAt
+        - amountCents
+        - reference
+      properties:
+        eventId:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        amountCents:
+          type: integer
+          format: int64
+        reference:
+          type: string
+        providerPaymentId:
+          type: string
+        raw:
+          type: object
+          additionalProperties: true
+    ReconciliationPaymentWebhookResponse:
+      type: object
+      required:
+        - ok
+        - eventId
+      properties:
+        ok:
+          type: boolean
+        eventId:
+          type: string
     QuotaExceededResponse:
       type: object
       required:
