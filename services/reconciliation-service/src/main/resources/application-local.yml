@@ -1,0 +1,8 @@
+server:
+  port: 8100
+
+app:
+  firestore:
+    enabled: false
+  security:
+    service-token: dev-reconciliation-token
