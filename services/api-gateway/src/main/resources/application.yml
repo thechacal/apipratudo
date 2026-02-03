@@ -37,6 +37,11 @@ scheduling:
   timeout-ms: ${SCHEDULING_TIMEOUT_MS:3000}
   service-token: ${SCHEDULING_SERVICE_TOKEN:}
 
+reconciliation:
+  base-url: ${RECONCILIATION_BASE_URL:http://localhost:8098}
+  timeout-ms: ${RECONCILIATION_TIMEOUT_MS:3000}
+  service-token: ${RECONCILIATION_SERVICE_TOKEN:}
+
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
   timeout-ms: ${FEDERAL_TIMEOUT_MS:60000}
@@ -82,6 +87,8 @@ maismilionaria:
   timeout-ms: ${MAISMILIONARIA_TIMEOUT_MS:60000}
 
 app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://meujobinho.com,https://www.meujobinho.com,https://meu-jobinho.web.app,https://meu-jobinho.firebaseapp.com,http://localhost:5173,http://localhost:5174}
   firestore:
     enabled: ${APP_FIRESTORE_ENABLED:${FIRESTORE_ENABLED:true}}
     project-id: ${APP_FIRESTORE_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}

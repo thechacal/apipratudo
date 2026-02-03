@@ -15,6 +15,9 @@ billing-saas:
 helpdesk:
   base-url: http://localhost:8098
   service-token: dev-helpdesk-token
+reconciliation:
+  base-url: http://localhost:8100
+  service-token: dev-reconciliation-token
 federal:
   base-url: http://localhost:8083
 lotofacil:

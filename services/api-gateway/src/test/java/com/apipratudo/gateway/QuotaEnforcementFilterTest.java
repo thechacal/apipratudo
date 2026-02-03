@@ -35,6 +35,7 @@ class QuotaEnforcementFilterTest {
   private static MockWebServer webhookServer;
   private static MockWebServer billingSaasServer;
   private static MockWebServer helpdeskServer;
+  private static MockWebServer reconciliationServer;
 
   @Autowired
   private MockMvc mockMvc;
@@ -103,6 +104,18 @@ class QuotaEnforcementFilterTest {
     registry.add("helpdesk.base-url", () -> helpdeskServer.url("/").toString());
     registry.add("helpdesk.timeout-ms", () -> 2000);
     registry.add("helpdesk.service-token", () -> "test-helpdesk");
+
+    if (reconciliationServer == null) {
+      reconciliationServer = new MockWebServer();
+      try {
+        reconciliationServer.start();
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to start reconciliation mock server", e);
+      }
+    }
+    registry.add("reconciliation.base-url", () -> reconciliationServer.url("/").toString());
+    registry.add("reconciliation.timeout-ms", () -> 2000);
+    registry.add("reconciliation.service-token", () -> "test-reconciliation");
   }
 
   @AfterAll
@@ -118,6 +131,9 @@ class QuotaEnforcementFilterTest {
     }
     if (helpdeskServer != null) {
       helpdeskServer.shutdown();
+    }
+    if (reconciliationServer != null) {
+      reconciliationServer.shutdown();
     }
   }
 
@@ -146,6 +162,12 @@ class QuotaEnforcementFilterTest {
     }
     while (helpdeskServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
       // drain helpdesk requests to keep tests isolated
+    }
+    if (reconciliationServer == null) {
+      return;
+    }
+    while (reconciliationServer.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+      // drain reconciliation requests to keep tests isolated
     }
   }
 
@@ -296,5 +318,29 @@ class QuotaEnforcementFilterTest {
     assertThat(saasRequest.getPath()).isEqualTo("/internal/providers/pagbank/connect");
     assertThat(saasRequest.getHeader("X-Tenant-Id")).isNotBlank();
     assertThat(saasRequest.getHeader("X-Api-Key")).isNull();
+  }
+
+  @Test
+  void reconciliationWebhookBypassesQuotaButRequiresApiKey() throws Exception {
+    reconciliationServer.enqueue(new MockResponse()
+        .setResponseCode(200)
+        .setHeader("Content-Type", "application/json")
+        .setBody("{\"ok\":true,\"eventId\":\"evt-1\"}"));
+
+    mockMvc.perform(post("/v1/webhook/pagamento")
+            .header("X-Api-Key", "api-key-123")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"eventId\":\"evt-1\",\"paidAt\":\"2026-02-02T00:00:00Z\",\"amountCents\":1000,\"reference\":\"ped-1\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    RecordedRequest quotaRequest = quotaServer.takeRequest(200, TimeUnit.MILLISECONDS);
+    assertThat(quotaRequest).isNull();
+
+    RecordedRequest reconciliationRequest = reconciliationServer.takeRequest(1, TimeUnit.SECONDS);
+    assertThat(reconciliationRequest).isNotNull();
+    assertThat(reconciliationRequest.getPath()).isEqualTo("/v1/webhook/pagamento");
+    assertThat(reconciliationRequest.getHeader("X-Service-Token")).isEqualTo("test-reconciliation");
+    assertThat(reconciliationRequest.getHeader("X-Tenant-Id")).isNotBlank();
   }
 }

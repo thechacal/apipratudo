@@ -34,6 +34,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
   private static final String PROVIDERS_PAGBANK_CONNECT = "/v1/provedores/pagbank/conectar";
   private static final String PROVIDERS_PAGBANK_STATUS = "/v1/provedores/pagbank/status";
   private static final String PROVIDERS_PAGBANK_DISCONNECT = "/v1/provedores/pagbank/desconectar";
+  private static final String RECONCILIATION_WEBHOOK_PAYMENT = "/v1/webhook/pagamento";
 
   private final QuotaClient quotaClient;
   private final ObjectMapper objectMapper;
@@ -79,7 +80,7 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     }
 
     String path = request.getRequestURI();
-    if (isKeysStatus(path) || isKeysUpgrade(path) || isProviderConfig(path)) {
+    if (isKeysStatus(path) || isKeysUpgrade(path) || isProviderConfig(path) || isNoQuotaPath(path)) {
       filterChain.doFilter(request, response);
       return;
     }
@@ -153,6 +154,10 @@ public class QuotaEnforcementFilter extends OncePerRequestFilter {
     return PROVIDERS_PAGBANK_CONNECT.equals(path)
         || PROVIDERS_PAGBANK_STATUS.equals(path)
         || PROVIDERS_PAGBANK_DISCONNECT.equals(path);
+  }
+
+  private boolean isNoQuotaPath(String path) {
+    return RECONCILIATION_WEBHOOK_PAYMENT.equals(path);
   }
 
   private boolean isQuotaExceeded(QuotaClientResult result) {
