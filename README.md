@@ -24,6 +24,10 @@ Foque no seu produto; a API cuida da infraestrutura e do contrato publico.
 - Webhook do WhatsApp publico (sem X-Api-Key) com validacao de assinatura.
 - Templates simples para respostas padronizadas.
 
+### Conciliacao Bancaria (Open Finance-lite)
+- Importar extrato CSV/OFX, aplicar regras de match e listar conciliados/pendencias.
+- Webhook de pagamento com X-Api-Key e sem consumo de quota.
+
 ## Em 60 segundos
 
 ### 1) Pedir uma API key
@@ -72,6 +76,27 @@ curl -s "$BASE_URL/v1/pix/webhook" \
 # status da cobranca
 curl -s "$BASE_URL/v1/cobrancas/chg_.../status" \
   -H "X-Api-Key: SUA_API_KEY"
+```
+
+### 4) Fluxo de conciliacao (resumo)
+```bash
+# importar extrato (CSV/OFX)
+curl -s "$BASE_URL/v1/importar-extrato" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: imp-001" \
+  -F "file=@extrato.csv;type=text/csv" \
+  -F "accountId=conta-main"
+
+# executar match
+curl -s "$BASE_URL/v1/match" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -H "Idempotency-Key: match-001" \
+  -d '{"importId":"imp_...","ruleset":{"matchBy":["amount","date","reference"],"dateToleranceDays":2,"amountToleranceCents":0,"dedupe":true}}'
+
+# consultar conciliados e pendencias
+curl -s "$BASE_URL/v1/conciliado?importId=imp_..." -H "X-Api-Key: SUA_API_KEY"
+curl -s "$BASE_URL/v1/pendencias?importId=imp_..." -H "X-Api-Key: SUA_API_KEY"
 ```
 
 ## Agendamento (MVP)
@@ -167,6 +192,19 @@ curl -s "$BASE_URL/v1/tickets" \
   -H "Content-Type: application/json" \
   -d '{"customerWaId":"5511999999999"}'
 ```
+
+## Conciliacao Bancaria (Open Finance-lite)
+
+Endpoints publicos (via /v1, com X-Api-Key):
+- `POST /v1/importar-extrato`
+- `POST /v1/match`
+- `GET /v1/conciliado`
+- `GET /v1/pendencias`
+- `POST /v1/webhook/pagamento`
+
+Regra de quota:
+- `POST /v1/webhook/pagamento` exige `X-Api-Key` mas nao consome quota.
+- Demais endpoints de conciliacao seguem quota normal.
 
 ## Links
 - `/swagger-ui/index.html`
