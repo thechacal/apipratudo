@@ -15,6 +15,8 @@ import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteResult;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -134,7 +136,7 @@ public class FirestoreReconciliationStore implements ReconciliationStore {
 
   @Override
   public IdempotencyRecord getIdempotency(String key) {
-    DocumentSnapshot doc = get(idemProps.getCollection(), key);
+    DocumentSnapshot doc = get(idemProps.getCollection(), idempotencyDocId(key));
     if (doc == null || !doc.exists()) {
       return null;
     }
@@ -147,7 +149,7 @@ public class FirestoreReconciliationStore implements ReconciliationStore {
 
   @Override
   public void saveIdempotency(IdempotencyRecord record) {
-    set(idemProps.getCollection(), record.key(), mapIdem(record));
+    set(idemProps.getCollection(), idempotencyDocId(record.key()), mapIdem(record));
   }
 
   private void set(String collection, String id, Map<String, Object> data) {
@@ -173,6 +175,20 @@ public class FirestoreReconciliationStore implements ReconciliationStore {
       return qs.getDocuments();
     } catch (Exception ex) {
       throw new IllegalStateException("Failed to query firestore", ex);
+    }
+  }
+
+  private String idempotencyDocId(String key) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(key.getBytes(StandardCharsets.UTF_8));
+      StringBuilder sb = new StringBuilder(hash.length * 2);
+      for (byte b : hash) {
+        sb.append(String.format("%02x", b));
+      }
+      return sb.toString();
+    } catch (Exception ex) {
+      throw new IllegalStateException("Failed to hash idempotency key", ex);
     }
   }
 
