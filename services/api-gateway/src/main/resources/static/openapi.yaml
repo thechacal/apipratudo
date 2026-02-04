@@ -22,6 +22,8 @@ tags:
     description: WhatsApp/atendimento, tickets e templates com SLA simples.
   - name: reconciliacao
     description: Importacao de extrato, matching e conciliacao de pagamentos.
+  - name: documentos
+    description: Validacao de CPF/CNPJ e verificacoes de identidade.
   - name: webhooks
     description: Cadastro e teste de webhooks do produto.
   - name: deliveries
@@ -2147,6 +2149,159 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/documentos/validar:
+    post:
+      summary: Validar documento (CPF/CNPJ)
+      tags:
+        - documentos
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityDocumentValidateRequest"
+            examples:
+              cpf:
+                value:
+                  tipo: CPF
+                  documento: "529.982.247-25"
+              cnpj:
+                value:
+                  tipo: CNPJ
+                  documento: "45.723.174/0001-10"
+      responses:
+        "200":
+          description: Resultado da validacao estrutural
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityDocumentValidateResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/verificacoes:
+    post:
+      summary: Executar verificacao de identidade
+      tags:
+        - documentos
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentityVerificationRequest"
+      responses:
+        "200":
+          description: Veredito da verificacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityVerificationResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/cnpj/{cnpj}/status:
+    get:
+      summary: Consultar status basico de CNPJ
+      tags:
+        - documentos
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: cnpj
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Status consultado em modo offline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityCnpjStatusResponse"
+        "400":
+          description: Erro de validacao
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Cota esgotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotaExceededResponse"
+        "500":
+          description: Erro interno
           content:
             application/json:
               schema:
@@ -4566,6 +4721,146 @@ components:
           type: boolean
         eventId:
           type: string
+    IdentityDocumentValidateRequest:
+      type: object
+      required:
+        - tipo
+        - documento
+      properties:
+        tipo:
+          type: string
+          enum: [CPF, CNPJ]
+        documento:
+          type: string
+          example: "529.982.247-25"
+    IdentityDocumentValidateResponse:
+      type: object
+      required:
+        - tipo
+        - documento_normalizado
+        - valido_estrutural
+        - motivos
+      properties:
+        tipo:
+          type: string
+          enum: [CPF, CNPJ]
+        documento_normalizado:
+          type: string
+        valido_estrutural:
+          type: boolean
+        motivos:
+          type: array
+          items:
+            type: string
+    IdentityCnpjStatusResponse:
+      type: object
+      required:
+        - cnpj
+        - valido_estrutural
+        - status
+        - fonte
+        - consultadoEm
+      properties:
+        cnpj:
+          type: string
+        valido_estrutural:
+          type: boolean
+        status:
+          type: string
+          enum: [UNKNOWN, INVALID]
+        razao_social:
+          type: string
+          nullable: true
+        fonte:
+          type: string
+          example: OFFLINE
+        consultadoEm:
+          type: string
+          format: date-time
+    IdentityVerificationRequest:
+      type: object
+      required:
+        - contexto
+        - documento
+      properties:
+        contexto:
+          type: string
+          enum: [cadastro, emissao_nf, cobranca, anti_fraude]
+        documento:
+          type: object
+          required:
+            - tipo
+            - valor
+          properties:
+            tipo:
+              type: string
+              enum: [CPF, CNPJ]
+            valor:
+              type: string
+        atributos_opcionais:
+          type: object
+          properties:
+            nome:
+              type: string
+              nullable: true
+            nascimento:
+              type: string
+              nullable: true
+              example: "1990-01-15"
+            email:
+              type: string
+              nullable: true
+            telefone:
+              type: string
+              nullable: true
+    IdentityVerificationResponse:
+      type: object
+      required:
+        - veredito
+        - sinais
+        - riscos
+        - proximos_passos
+      properties:
+        veredito:
+          type: string
+          enum: [APROVAR, REVISAR, NEGAR]
+        sinais:
+          type: object
+          required:
+            - valido_estrutural
+            - tipo
+            - cnpj_status
+            - atributos_fornecidos
+          properties:
+            valido_estrutural:
+              type: boolean
+            tipo:
+              type: string
+              enum: [CPF, CNPJ]
+            cnpj_status:
+              type: string
+              enum: [UNKNOWN, INVALID, N/A]
+            atributos_fornecidos:
+              type: boolean
+        riscos:
+          type: array
+          items:
+            type: object
+            required:
+              - regra
+              - peso
+              - hit
+            properties:
+              regra:
+                type: string
+              peso:
+                type: integer
+              hit:
+                type: boolean
+        proximos_passos:
+          type: array
+          items:
+            type: string
     QuotaExceededResponse:
       type: object
       required:

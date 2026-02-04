@@ -1,0 +1,26 @@
+server:
+  port: ${PORT:8101}
+
+springdoc:
+  swagger-ui:
+    path: /docs
+    url: /openapi.yaml
+
+app:
+  security:
+    service-token: ${IDENTITY_SERVICE_TOKEN:}
+  idempotency:
+    ttl-seconds: ${IDENTITY_IDEMPOTENCY_TTL_SECONDS:86400}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    probes:
+      enabled: true

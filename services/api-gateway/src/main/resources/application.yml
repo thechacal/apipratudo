@@ -42,6 +42,11 @@ reconciliation:
   timeout-ms: ${RECONCILIATION_TIMEOUT_MS:3000}
   service-token: ${RECONCILIATION_SERVICE_TOKEN:}
 
+identity:
+  base-url: ${IDENTITY_BASE_URL:http://localhost:8101}
+  timeout-ms: ${IDENTITY_TIMEOUT_MS:5000}
+  service-token: ${IDENTITY_SERVICE_TOKEN:dev-identity}
+
 federal:
   base-url: ${FEDERAL_BASE_URL:http://localhost:8083}
   timeout-ms: ${FEDERAL_TIMEOUT_MS:60000}

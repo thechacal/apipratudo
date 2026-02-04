@@ -1,0 +1,3 @@
+app:
+  security:
+    service-token: dev-identity-token
