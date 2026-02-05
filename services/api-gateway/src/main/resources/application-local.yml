@@ -18,6 +18,9 @@ helpdesk:
 reconciliation:
   base-url: http://localhost:8100
   service-token: dev-reconciliation-token
+identity:
+  base-url: http://localhost:8101
+  service-token: dev-identity-token
 federal:
   base-url: http://localhost:8083
 lotofacil:
