@@ -28,6 +28,10 @@ Foque no seu produto; a API cuida da infraestrutura e do contrato publico.
 - Importar extrato CSV/OFX, aplicar regras de match e listar conciliados/pendencias.
 - Webhook de pagamento com X-Api-Key e sem consumo de quota.
 
+### Identidade (CPF/CNPJ)
+- Validacao estrutural de CPF/CNPJ e verificacoes deterministicas.
+- Status de CNPJ (placeholder offline) com resultado estavel.
+
 ## Em 60 segundos
 
 ### 1) Pedir uma API key
@@ -97,6 +101,25 @@ curl -s "$BASE_URL/v1/match" \
 # consultar conciliados e pendencias
 curl -s "$BASE_URL/v1/conciliado?importId=imp_..." -H "X-Api-Key: SUA_API_KEY"
 curl -s "$BASE_URL/v1/pendencias?importId=imp_..." -H "X-Api-Key: SUA_API_KEY"
+```
+
+### 5) Fluxo de identidade (CPF/CNPJ)
+```bash
+# validar CPF/CNPJ
+curl -s "$BASE_URL/v1/documentos/validar" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -d '{"tipo":"CPF","documento":"390.533.447-05"}'
+
+# ver status do CNPJ (placeholder offline)
+curl -s "$BASE_URL/v1/cnpj/11222333000181/status" \
+  -H "X-Api-Key: SUA_API_KEY"
+
+# verificacao com contexto
+curl -s "$BASE_URL/v1/verificacoes" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: SUA_API_KEY" \
+  -d '{"contexto":"cadastro","documento":{"tipo":"CNPJ","valor":"11222333000181"}}'
 ```
 
 ## Agendamento (MVP)
